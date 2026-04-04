@@ -1,0 +1,5 @@
+import xarray as xr
+
+ds = xr.open_dataset("arquivo.anl")
+
+print(ds)

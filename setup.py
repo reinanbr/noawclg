@@ -18,4 +18,4 @@ setup(name='noawclg',
     keywords='climate weather noaa',
     description=u'Library for getting dataset from noaa site',
     packages=find_packages(),
-    install_requires=['xarray','netCDF4','matplotlib','geopy','openpyxl'],)
+    install_requires=['xarray','netCDF4','matplotlib','tqdm','cfgrib','requests','geopy','openpyxl'],)
