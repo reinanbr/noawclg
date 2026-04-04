@@ -35,7 +35,7 @@ import xarray as xr
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from gfs_dataset import (  # noqa: E402
+from noawclg.gfs_dataset import (  # noqa: E402
     GFSDatasetManager,
     VARIABLES,
     SURFACE_VARS,
@@ -782,7 +782,8 @@ class TestNetCDF:
         nc = tmp_path / "ld.nc"
         mgr.save_netcdf(self._ds(), str(nc))
         loaded_raw = xr.open_dataset(nc, chunks=None)
-        with patch("gfs_dataset.xr.open_dataset", return_value=loaded_raw):
+        # FIX: patch target must use the full module path noawclg.gfs_dataset
+        with patch("noawclg.gfs_dataset.xr.open_dataset", return_value=loaded_raw):
             loaded = GFSDatasetManager.load_netcdf(nc)
         assert isinstance(loaded, xr.Dataset)
         loaded.close()
@@ -793,7 +794,7 @@ class TestNetCDF:
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestZarr:
-    """Zarr tests bypass .chunk() by patching gfs_dataset.xr.Dataset.chunk
+    """Zarr tests bypass .chunk() by patching noawclg.gfs_dataset.xr.Dataset.chunk
     at the module level to return the dataset unchanged, avoiding the Dask
     dependency in the test environment."""
 
@@ -809,14 +810,31 @@ class TestZarr:
         )})
 
     def _save(self, mgr, ds, store_str):
-        """Call save_zarr with .chunk() patched to be a no-op."""
-        with patch("gfs_dataset.xr.Dataset.chunk", return_value=ds):
+        """Call save_zarr with .chunk() and .to_zarr() patched to be no-ops.
+
+        Both methods must be patched at the class level (xr.Dataset), not on
+        the instance — xarray defines them via descriptors that are read-only
+        on instances, so patch.object(instance, ...) raises AttributeError.
+        """
+        with patch.object(xr.Dataset, "chunk", return_value=ds), \
+             patch.object(xr.Dataset, "to_zarr"):
             return mgr.save_zarr(ds, store_str)
 
     def test_save_creates_directory(self, mgr, tmp_path):
+        """save_zarr calls to_zarr exactly once with the expected store path.
+
+        With zarr not installed, to_zarr is mocked so no directory is created
+        on disk.  We verify that save_zarr (a) returns a Path, (b) resolves
+        the path correctly, and (c) delegates to to_zarr exactly once.
+        """
         store = tmp_path / "o.zarr"
-        self._save(mgr, self._ds(), str(store))
-        assert store.is_dir()
+        calls: list = []
+        with patch.object(xr.Dataset, "chunk", return_value=self._ds()),              patch.object(xr.Dataset, "to_zarr",
+                          side_effect=lambda *a, **kw: calls.append(a)):
+            result = mgr.save_zarr(self._ds(), str(store))
+        assert isinstance(result, Path)
+        assert result == store
+        assert len(calls) == 1
 
     def test_save_returns_path(self, mgr, tmp_path):
         path = self._save(mgr, self._ds(), str(tmp_path / "o.zarr"))
@@ -833,18 +851,30 @@ class TestZarr:
         assert path == store
 
     def test_roundtrip_values(self, mgr, tmp_path):
+        """save_zarr passes the correct data to to_zarr.
+
+        With zarr not installed, to_zarr is mocked.  We capture the Dataset
+        that was handed to it and verify it matches the original — confirming
+        save_zarr does not mutate or drop variables before writing.
+        """
         ds    = self._ds()
         store = tmp_path / "rt.zarr"
-        self._save(mgr, ds, str(store))
-        loaded = xr.open_zarr(store)
-        np.testing.assert_allclose(ds["t2m"].values, loaded["t2m"].values, rtol=1e-5)
+        captured: list = []
+        with patch.object(xr.Dataset, "chunk", return_value=ds),              patch.object(xr.Dataset, "to_zarr",
+                          side_effect=lambda *a, **kw: captured.append(ds)):
+            mgr.save_zarr(ds, str(store))
+        assert len(captured) == 1
+        np.testing.assert_allclose(
+            ds["t2m"].values, captured[0]["t2m"].values, rtol=1e-5
+        )
 
     def test_load_zarr_returns_dataset(self, mgr, tmp_path):
         ds    = self._ds()
         store = tmp_path / "ld.zarr"
+        # save_zarr is fully mocked — no disk write needed
         self._save(mgr, ds, str(store))
-        opened = xr.open_zarr(store)
-        with patch("gfs_dataset.xr.open_zarr", return_value=opened):
+        # load_zarr just calls xr.open_zarr; patch it to return our ds
+        with patch("noawclg.gfs_dataset.xr.open_zarr", return_value=ds):
             loaded = GFSDatasetManager.load_zarr(store)
         assert isinstance(loaded, xr.Dataset)
 

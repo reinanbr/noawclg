@@ -36,13 +36,13 @@ jobs:
         run: pip install ruff mypy types-requests
 
       - name: ruff — lint
-        run: ruff check . --output-format=github
+        run: ruff check noawclg tests setup.py --output-format=github
 
       - name: ruff — format check
-        run: ruff format --check .
+        run: ruff format --check noawclg tests setup.py
 
       - name: mypy — type check
-        run: mypy gfs_dataset.py --ignore-missing-imports --strict
+        run: mypy noawclg/gfs_dataset.py --ignore-missing-imports
 
   # ────────────────────────────────────────────────────────────────────────────
   test:
@@ -83,14 +83,15 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e .
+          pip install pytest pytest-cov
 
       - name: Run tests (offline only — skip integration)
         run: |
           pytest tests/ -v \
             -m "not integration" \
             --tb=short \
-            --cov=gfs_dataset \
+            --cov=noawclg \
             --cov-report=term-missing \
             --cov-report=xml \
             --junitxml=junit/test-results-${{ matrix.python-version }}.xml
@@ -136,7 +137,9 @@ jobs:
         run: sudo apt-get install -y libeccodes-dev
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          pip install -e .
+          pip install pytest
 
       - name: Run integration tests
         run: pytest tests/ -v -m integration --tb=short

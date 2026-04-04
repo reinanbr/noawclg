@@ -7,7 +7,7 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [2.1.11]
 
 ### Planned
 - Async download support via `asyncio` / `aiohttp`.

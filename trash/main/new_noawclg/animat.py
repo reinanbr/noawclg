@@ -1,5 +1,4 @@
 import requests
-import cfgrib
 import xarray as xr
 import numpy as np
 import matplotlib
@@ -166,6 +165,6 @@ ani.save(GIF_OUT, writer=writer, dpi=100)
 plt.close(fig)
 
 print(f"\nGIF salvo: {GIF_OUT}")
-print(f"  Resolução : 1400×700 px")
+print("  Resolução : 1400×700 px")
 print(f"  Frames    : {len(frames)}")
 print(f"  Duração   : ~{len(frames)/FPS:.0f}s  ({FPS} fps)")
