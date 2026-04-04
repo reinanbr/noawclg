@@ -14,6 +14,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from tqdm import tqdm
+
 LOG = logging.getLogger(__name__)
 
 # FIX 1: NOMADS blocks the default 'python-requests' User-Agent with 403.
@@ -29,7 +30,7 @@ _HEADERS = {
 # Retries on 429 (rate-limit), 500, 502, 503, 504 with exponential back-off.
 _RETRY = Retry(
     total=4,
-    backoff_factor=2,          # waits 2s, 4s, 8s, 16s between attempts
+    backoff_factor=2,  # waits 2s, 4s, 8s, 16s between attempts
     status_forcelist={429, 500, 502, 503, 504},
     allowed_methods={"GET", "HEAD"},
     raise_on_status=False,
@@ -46,7 +47,7 @@ def _build_session() -> requests.Session:
     session.headers.update(_HEADERS)
     adapter = HTTPAdapter(max_retries=_RETRY)
     session.mount("https://", adapter)
-    session.mount("http://",  adapter)
+    session.mount("http://", adapter)
     return session
 
 
@@ -96,7 +97,7 @@ def get_all_data_16_days(
         out_dir.mkdir(parents=True, exist_ok=True)
 
     available: list[dict[str, Any]] = []
-    missing:   list[dict[str, Any]] = []
+    missing: list[dict[str, Any]] = []
 
     session = _build_session()
 
@@ -114,16 +115,13 @@ def get_all_data_16_days(
 
                     if resp.status_code != 200:
                         missing.append(
-                            {"hour": hour, "url": url,
-                             "status_code": resp.status_code}
+                            {"hour": hour, "url": url, "status_code": resp.status_code}
                         )
-                        LOG.warning(
-                            "Missing hour %d: HTTP %d", hour, resp.status_code
-                        )
+                        LOG.warning("Missing hour %d: HTTP %d", hour, resp.status_code)
                         continue
 
                     filename = f"gfs_{date}_{cycle}z_f{hour:03d}.grib2"
-                    path     = out_dir / filename
+                    path = out_dir / filename
                     bytes_written = 0
 
                     with path.open("wb") as fh:
@@ -138,27 +136,29 @@ def get_all_data_16_days(
                         LOG.warning(
                             "Hour %d: file too small (%d bytes) — likely an "
                             "error response; discarding.",
-                            hour, bytes_written,
+                            hour,
+                            bytes_written,
                         )
                         path.unlink(missing_ok=True)
                         missing.append(
-                            {"hour": hour, "url": url,
-                             "error": f"empty response ({bytes_written} bytes)"}
+                            {
+                                "hour": hour,
+                                "url": url,
+                                "error": f"empty response ({bytes_written} bytes)",
+                            }
                         )
                         continue
 
                     item: dict[str, Any] = {
-                        "hour":           hour,
-                        "url":            url,
-                        "status_code":    resp.status_code,
+                        "hour": hour,
+                        "url": url,
+                        "status_code": resp.status_code,
                         # FIX 4: Content-Length is unreliable with stream=True;
                         # use the actual bytes written instead.
                         "content_length": bytes_written,
-                        "file":           str(path),
+                        "file": str(path),
                     }
-                    LOG.info(
-                        "  [ok] f%03d  %.0f KB", hour, bytes_written / 1024
-                    )
+                    LOG.info("  [ok] f%03d  %.0f KB", hour, bytes_written / 1024)
 
                 else:
                     # --- CHECK-ONLY MODE (no download) ---
@@ -168,28 +168,26 @@ def get_all_data_16_days(
 
                     if resp.status_code not in {200, 302}:
                         missing.append(
-                            {"hour": hour, "url": url,
-                             "status_code": resp.status_code}
+                            {"hour": hour, "url": url, "status_code": resp.status_code}
                         )
-                        LOG.warning(
-                            "Missing hour %d: HTTP %d", hour, resp.status_code
-                        )
+                        LOG.warning("Missing hour %d: HTTP %d", hour, resp.status_code)
                         continue
 
                     item = {
-                        "hour":           hour,
-                        "url":            url,
-                        "status_code":    resp.status_code,
-                        "content_length": int(
-                            resp.headers.get("Content-Length", 0)
-                        ),
+                        "hour": hour,
+                        "url": url,
+                        "status_code": resp.status_code,
+                        "content_length": int(resp.headers.get("Content-Length", 0)),
                     }
 
                 available.append(item)
                 it_hour += 1
                 percent_complete = (it_hour / total_hours) * 100
                 LOG.info(
-                    "Progress: %d/%d hours (%.1f%%)", it_hour, total_hours, percent_complete
+                    "Progress: %d/%d hours (%.1f%%)",
+                    it_hour,
+                    total_hours,
+                    percent_complete,
                 )
 
             except requests.RequestException as exc:
@@ -202,16 +200,14 @@ def get_all_data_16_days(
         session.close()
 
     return {
-        "date":            date,
-        "cycle":           cycle,
-        "total_slots":     len(hours),
-        "available":       available,
-        "missing":         missing,
+        "date": date,
+        "cycle": cycle,
+        "total_slots": len(hours),
+        "available": available,
+        "missing": missing,
         "available_count": len(available),
-        "missing_count":   len(missing),
+        "missing_count": len(missing),
     }
-
-
 
 
 # if __name__ == "__main__":
@@ -224,10 +220,10 @@ def get_all_data_16_days(
 
 #     # Check-only (no download):
 #     result = get_all_data_16_days(base_url=base, date="20260403", cycle="06")
-    
+
 #     print(
 #         f"Available: {result['available_count']} | "
 #         f"Missing:   {result['missing_count']}"
 #     )
 
-    # To download files, add:  save_to="./gfs_output"
+# To download files, add:  save_to="./gfs_output"

@@ -53,10 +53,10 @@ from noawclg.gfs_dataset import (  # noqa: E402
 # ══════════════════════════════════════════════════════════════════════════════
 
 BRAZIL_REGION = {
-    "toplat":    5.0,
+    "toplat": 5.0,
     "bottomlat": -35.0,
-    "leftlon":   -75.0,
-    "rightlon":  -34.0,
+    "leftlon": -75.0,
+    "rightlon": -34.0,
 }
 
 LATS = np.linspace(5, -35, 161)
@@ -84,8 +84,8 @@ def _multilevel_ds(
         np.full((len(levels), len(LATS), len(LONS)), value),
         coords={
             "isobaricInhPa": levels,
-            "latitude":      LATS,
-            "longitude":     LONS,
+            "latitude": LATS,
+            "longitude": LONS,
         },
         dims=["isobaricInhPa", "latitude", "longitude"],
     )
@@ -95,36 +95,43 @@ def _multilevel_ds(
 def _timed_ds(var_key: str) -> xr.Dataset:
     """One-timestep Dataset suitable for merge tests."""
     return xr.Dataset(
-        {var_key: xr.DataArray(
-            np.ones((1, len(LATS), len(LONS))),
-            coords={
-                "time":      [datetime(2026, 4, 3, 6)],
-                "latitude":  LATS,
-                "longitude": LONS,
-            },
-            dims=["time", "latitude", "longitude"],
-        )}
+        {
+            var_key: xr.DataArray(
+                np.ones((1, len(LATS), len(LONS))),
+                coords={
+                    "time": [datetime(2026, 4, 3, 6)],
+                    "latitude": LATS,
+                    "longitude": LONS,
+                },
+                dims=["time", "latitude", "longitude"],
+            )
+        }
     )
 
 
 @pytest.fixture()
 def mgr(tmp_path: Path) -> GFSDatasetManager:
     return GFSDatasetManager(
-        date="20260403", cycle="06",
-        output_dir=str(tmp_path), region=BRAZIL_REGION,
+        date="20260403",
+        cycle="06",
+        output_dir=str(tmp_path),
+        region=BRAZIL_REGION,
     )
 
 
 @pytest.fixture()
 def mgr_global(tmp_path: Path) -> GFSDatasetManager:
     return GFSDatasetManager(
-        date="20260403", cycle="06",
-        output_dir=str(tmp_path), region=None,
+        date="20260403",
+        cycle="06",
+        output_dir=str(tmp_path),
+        region=None,
     )
 
 
-def _stub_files(mgr: GFSDatasetManager, var_keys: list[str],
-                hours: list[int]) -> dict[int, Path]:
+def _stub_files(
+    mgr: GFSDatasetManager, var_keys: list[str], hours: list[int]
+) -> dict[int, Path]:
     """Write dummy files at the expected cache paths and return the dict."""
     result = {}
     for h in hours:
@@ -138,8 +145,8 @@ def _stub_files(mgr: GFSDatasetManager, var_keys: list[str],
 # 1 · Module-level constants
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestConstants:
 
+class TestConstants:
     def test_variables_not_empty(self):
         assert len(VARIABLES) > 0
 
@@ -185,8 +192,10 @@ class TestConstants:
         assert len(HOURS_5DAYS_1H) == 121
 
     def test_hours_10days_3h_constant_step(self):
-        diffs = [HOURS_10DAYS_3H[i+1] - HOURS_10DAYS_3H[i]
-                 for i in range(len(HOURS_10DAYS_3H) - 1)]
+        diffs = [
+            HOURS_10DAYS_3H[i + 1] - HOURS_10DAYS_3H[i]
+            for i in range(len(HOURS_10DAYS_3H) - 1)
+        ]
         assert all(d == 3 for d in diffs)
 
     def test_hours_16days_3h_sorted(self):
@@ -205,10 +214,11 @@ class TestConstants:
 # 2 · _build_session
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestBuildSession:
 
+class TestBuildSession:
     def test_returns_requests_session(self):
         import requests as req
+
         s = _build_session()
         assert isinstance(s, req.Session)
         s.close()
@@ -220,12 +230,14 @@ class TestBuildSession:
 
     def test_https_adapter_is_http_adapter(self):
         from requests.adapters import HTTPAdapter
+
         s = _build_session()
         assert isinstance(s.get_adapter("https://nomads.ncep.noaa.gov"), HTTPAdapter)
         s.close()
 
     def test_http_adapter_is_http_adapter(self):
         from requests.adapters import HTTPAdapter
+
         s = _build_session()
         assert isinstance(s.get_adapter("http://nomads.ncep.noaa.gov"), HTTPAdapter)
         s.close()
@@ -235,8 +247,8 @@ class TestBuildSession:
 # 3 · GFSDatasetManager.__init__
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestInit:
 
+class TestInit:
     def test_valid_construction_stores_attrs(self, tmp_path):
         mgr = GFSDatasetManager(date="20260403", cycle="06", output_dir=str(tmp_path))
         assert mgr.date == "20260403"
@@ -292,8 +304,8 @@ class TestInit:
 # 4 · Private helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestHelpers:
 
+class TestHelpers:
     # _region_params
 
     def test_region_params_contains_coords(self, mgr):
@@ -390,12 +402,12 @@ class TestHelpers:
         assert p1 == p2
 
     def test_cache_path_vkey_max_60_chars(self, tmp_path):
-        mgr  = GFSDatasetManager(date="20260403", output_dir=str(tmp_path))
+        mgr = GFSDatasetManager(date="20260403", output_dir=str(tmp_path))
         many = list(VARIABLES.keys())[:15]
-        p    = mgr._cache_path(many, hour=0)
-        stem = p.stem   # strip .grib2
+        p = mgr._cache_path(many, hour=0)
+        stem = p.stem  # strip .grib2
         after_cycle = stem.split("00z_", 1)[1]
-        vkey_part   = after_cycle.rsplit("_global", 1)[0]
+        vkey_part = after_cycle.rsplit("_global", 1)[0]
         assert len(vkey_part) <= 60
 
 
@@ -403,8 +415,8 @@ class TestHelpers:
 # 5 · download_hours
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestDownloadHours:
 
+class TestDownloadHours:
     def test_unknown_var_raises_key_error(self, mgr):
         with pytest.raises(KeyError, match="Unknown variables"):
             mgr.download_hours(["not_a_var"], hours=[0])
@@ -423,8 +435,10 @@ class TestDownloadHours:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.iter_content.return_value = [b"G" * 500]
-        with patch.object(mgr._session, "get", return_value=mock_resp), \
-             patch("time.sleep"):
+        with (
+            patch.object(mgr._session, "get", return_value=mock_resp),
+            patch("time.sleep"),
+        ):
             mgr.download_hours(["t2m"], [0], force=True)
         mock_resp.iter_content.assert_called()
 
@@ -432,16 +446,20 @@ class TestDownloadHours:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.iter_content.return_value = [b"G" * 1024]
-        with patch.object(mgr._session, "get", return_value=mock_resp), \
-             patch("time.sleep"):
+        with (
+            patch.object(mgr._session, "get", return_value=mock_resp),
+            patch("time.sleep"),
+        ):
             result = mgr.download_hours(["t2m"], [0])
         assert 0 in result and result[0].exists()
 
     def test_http_error_omits_hour(self, mgr):
         mock_resp = MagicMock()
         mock_resp.status_code = 404
-        with patch.object(mgr._session, "get", return_value=mock_resp), \
-             patch("time.sleep"):
+        with (
+            patch.object(mgr._session, "get", return_value=mock_resp),
+            patch("time.sleep"),
+        ):
             result = mgr.download_hours(["t2m"], [0])
         assert 0 not in result
 
@@ -449,8 +467,10 @@ class TestDownloadHours:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.iter_content.return_value = [b"tiny"]
-        with patch.object(mgr._session, "get", return_value=mock_resp), \
-             patch("time.sleep"):
+        with (
+            patch.object(mgr._session, "get", return_value=mock_resp),
+            patch("time.sleep"),
+        ):
             result = mgr.download_hours(["t2m"], [0])
         assert 0 not in result
 
@@ -458,8 +478,10 @@ class TestDownloadHours:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.iter_content.return_value = [b"G" * 1024]
-        with patch.object(mgr._session, "get", return_value=mock_resp), \
-             patch("time.sleep"):
+        with (
+            patch.object(mgr._session, "get", return_value=mock_resp),
+            patch("time.sleep"),
+        ):
             result = mgr.download_hours(["t2m"], [0, 6, 12])
         assert set(result.keys()) == {0, 6, 12}
 
@@ -467,8 +489,10 @@ class TestDownloadHours:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.iter_content.return_value = [b"G" * 1024]
-        with patch.object(mgr._session, "get", return_value=mock_resp), \
-             patch("time.sleep") as mock_sleep:
+        with (
+            patch.object(mgr._session, "get", return_value=mock_resp),
+            patch("time.sleep") as mock_sleep,
+        ):
             mgr.download_hours(["t2m"], [0, 6], force=True)
         assert mock_sleep.call_count == 2
 
@@ -482,9 +506,13 @@ class TestDownloadHours:
 
     def test_network_exception_omits_hour(self, mgr):
         import requests as req
-        with patch.object(mgr._session, "get",
-                          side_effect=req.RequestException("timeout")), \
-             patch("time.sleep"):
+
+        with (
+            patch.object(
+                mgr._session, "get", side_effect=req.RequestException("timeout")
+            ),
+            patch("time.sleep"),
+        ):
             result = mgr.download_hours(["t2m"], [0])
         assert 0 not in result
 
@@ -492,8 +520,10 @@ class TestDownloadHours:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.iter_content.return_value = [b"G" * 512]
-        with patch.object(mgr._session, "get", return_value=mock_resp), \
-             patch("time.sleep"):
+        with (
+            patch.object(mgr._session, "get", return_value=mock_resp),
+            patch("time.sleep"),
+        ):
             result = mgr.download_hours(["t2m"], [0])
         assert isinstance(result, dict)
 
@@ -502,8 +532,8 @@ class TestDownloadHours:
 # 6 · _extract
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestExtract:
 
+class TestExtract:
     def test_surface_2d(self, mgr):
         _, _, data = mgr._extract(_surface_ds(), "t2m")
         assert data.ndim == 2
@@ -557,7 +587,7 @@ class TestExtract:
         da = xr.DataArray(
             np.zeros((len(LATS), len(LONS))),
             coords={
-                "latitude":  (["la", "lo"], lat2d),
+                "latitude": (["la", "lo"], lat2d),
                 "longitude": (["la", "lo"], lon2d),
             },
             dims=["la", "lo"],
@@ -570,70 +600,103 @@ class TestExtract:
 # 7 · _build_single_var_ds
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestBuildSingleVarDs:
 
+class TestBuildSingleVarDs:
     def test_returns_dataset(self, mgr):
         files = _stub_files(mgr, ["t2m"], [0])
-        with patch.object(mgr, "_open_var", return_value=_surface_ds()), \
-             patch.object(mgr, "_extract",
-                          return_value=(LATS, LONS, np.ones((len(LATS), len(LONS))))):
+        with (
+            patch.object(mgr, "_open_var", return_value=_surface_ds()),
+            patch.object(
+                mgr,
+                "_extract",
+                return_value=(LATS, LONS, np.ones((len(LATS), len(LONS)))),
+            ),
+        ):
             ds = mgr._build_single_var_ds("t2m", files)
         assert isinstance(ds, xr.Dataset)
 
     def test_time_dim_length(self, mgr):
         files = _stub_files(mgr, ["t2m"], [0, 6, 12])
-        with patch.object(mgr, "_open_var", return_value=_surface_ds()), \
-             patch.object(mgr, "_extract",
-                          return_value=(LATS, LONS, np.ones((len(LATS), len(LONS))))):
+        with (
+            patch.object(mgr, "_open_var", return_value=_surface_ds()),
+            patch.object(
+                mgr,
+                "_extract",
+                return_value=(LATS, LONS, np.ones((len(LATS), len(LONS)))),
+            ),
+        ):
             ds = mgr._build_single_var_ds("t2m", files)
         assert ds.sizes["time"] == 3
 
     def test_forecast_hour_coord(self, mgr):
         files = _stub_files(mgr, ["t2m"], [0, 6])
-        with patch.object(mgr, "_open_var", return_value=_surface_ds()), \
-             patch.object(mgr, "_extract",
-                          return_value=(LATS, LONS, np.ones((len(LATS), len(LONS))))):
+        with (
+            patch.object(mgr, "_open_var", return_value=_surface_ds()),
+            patch.object(
+                mgr,
+                "_extract",
+                return_value=(LATS, LONS, np.ones((len(LATS), len(LONS)))),
+            ),
+        ):
             ds = mgr._build_single_var_ds("t2m", files)
         assert list(ds["forecast_hour"].values) == [0, 6]
 
     def test_var_present_in_output(self, mgr):
         files = _stub_files(mgr, ["t2m"], [0])
-        with patch.object(mgr, "_open_var", return_value=_surface_ds()), \
-             patch.object(mgr, "_extract",
-                          return_value=(LATS, LONS, np.ones((len(LATS), len(LONS))))):
+        with (
+            patch.object(mgr, "_open_var", return_value=_surface_ds()),
+            patch.object(
+                mgr,
+                "_extract",
+                return_value=(LATS, LONS, np.ones((len(LATS), len(LONS)))),
+            ),
+        ):
             ds = mgr._build_single_var_ds("t2m", files)
         assert "t2m" in ds
 
     def test_attrs_set(self, mgr):
         files = _stub_files(mgr, ["t2m"], [0])
-        with patch.object(mgr, "_open_var", return_value=_surface_ds()), \
-             patch.object(mgr, "_extract",
-                          return_value=(LATS, LONS, np.ones((len(LATS), len(LONS))))):
+        with (
+            patch.object(mgr, "_open_var", return_value=_surface_ds()),
+            patch.object(
+                mgr,
+                "_extract",
+                return_value=(LATS, LONS, np.ones((len(LATS), len(LONS)))),
+            ),
+        ):
             ds = mgr._build_single_var_ds("t2m", files)
         assert ds.attrs["run_date"] == "20260403"
         assert ds["t2m"].attrs["units"] == "C"
 
     def test_raises_on_all_files_fail(self, mgr):
         files = _stub_files(mgr, ["t2m"], [0])
-        with patch.object(mgr, "_open_var", return_value=None), \
-             pytest.raises(RuntimeError, match="No valid data"):
+        with (
+            patch.object(mgr, "_open_var", return_value=None),
+            pytest.raises(RuntimeError, match="No valid data"),
+        ):
             mgr._build_single_var_ds("t2m", files)
 
     def test_multilevel_level_dim(self, mgr):
         levels = [500, 850, 1000]
-        files  = _stub_files(mgr, ["t"], [0])
+        files = _stub_files(mgr, ["t"], [0])
         data3d = np.ones((len(levels), len(LATS), len(LONS)))
-        with patch.object(mgr, "_open_var", return_value=_multilevel_ds("t", levels)), \
-             patch.object(mgr, "_extract",
-                          return_value=(LATS, LONS, data3d)):
+        with (
+            patch.object(mgr, "_open_var", return_value=_multilevel_ds("t", levels)),
+            patch.object(mgr, "_extract", return_value=(LATS, LONS, data3d)),
+        ):
             ds = mgr._build_single_var_ds("t", files)
         assert "level" in ds.sizes and ds.sizes["level"] == 3
 
     def test_lat_lon_coords_present(self, mgr):
         files = _stub_files(mgr, ["t2m"], [0])
-        with patch.object(mgr, "_open_var", return_value=_surface_ds()), \
-             patch.object(mgr, "_extract",
-                          return_value=(LATS, LONS, np.ones((len(LATS), len(LONS))))):
+        with (
+            patch.object(mgr, "_open_var", return_value=_surface_ds()),
+            patch.object(
+                mgr,
+                "_extract",
+                return_value=(LATS, LONS, np.ones((len(LATS), len(LONS)))),
+            ),
+        ):
             ds = mgr._build_single_var_ds("t2m", files)
         assert "latitude" in ds.coords and "longitude" in ds.coords
 
@@ -642,32 +705,40 @@ class TestBuildSingleVarDs:
 # 8 · build_dataset
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestBuildDataset:
 
+class TestBuildDataset:
     def test_calls_download_hours_with_list(self, mgr):
-        with patch.object(mgr, "download_hours", return_value={}) as mock_dl, \
-             pytest.raises(RuntimeError):
+        with (
+            patch.object(mgr, "download_hours", return_value={}) as mock_dl,
+            pytest.raises(RuntimeError),
+        ):
             mgr.build_dataset("t2m", [0])
         mock_dl.assert_called_once_with(["t2m"], [0], force=False)
 
     def test_raises_when_no_files(self, mgr):
-        with patch.object(mgr, "download_hours", return_value={}), \
-             pytest.raises(RuntimeError, match="No files downloaded"):
+        with (
+            patch.object(mgr, "download_hours", return_value={}),
+            pytest.raises(RuntimeError, match="No files downloaded"),
+        ):
             mgr.build_dataset("t2m", [0])
 
     def test_returns_dataset_on_success(self, mgr, tmp_path):
         fake = tmp_path / "f.grib2"
         fake.write_bytes(b"x")
         data = np.ones((len(LATS), len(LONS)))
-        with patch.object(mgr, "download_hours", return_value={0: fake}), \
-             patch.object(mgr, "_open_var", return_value=_surface_ds()), \
-             patch.object(mgr, "_extract", return_value=(LATS, LONS, data)):
+        with (
+            patch.object(mgr, "download_hours", return_value={0: fake}),
+            patch.object(mgr, "_open_var", return_value=_surface_ds()),
+            patch.object(mgr, "_extract", return_value=(LATS, LONS, data)),
+        ):
             ds = mgr.build_dataset("t2m", [0])
         assert "t2m" in ds
 
     def test_force_forwarded(self, mgr):
-        with patch.object(mgr, "download_hours", return_value={}) as mock_dl, \
-             pytest.raises(RuntimeError):
+        with (
+            patch.object(mgr, "download_hours", return_value={}) as mock_dl,
+            pytest.raises(RuntimeError),
+        ):
             mgr.build_dataset("t2m", [0], force_download=True)
         mock_dl.assert_called_once_with(["t2m"], [0], force=True)
 
@@ -676,20 +747,23 @@ class TestBuildDataset:
 # 9 · build_multi_dataset
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestBuildMultiDataset:
 
+class TestBuildMultiDataset:
     def test_raises_when_no_files(self, mgr):
-        with patch.object(mgr, "download_hours", return_value={}), \
-             pytest.raises(RuntimeError, match="No files available"):
+        with (
+            patch.object(mgr, "download_hours", return_value={}),
+            pytest.raises(RuntimeError, match="No files available"),
+        ):
             mgr.build_multi_dataset(["t2m", "prate"], [0])
 
     def test_raises_when_all_vars_fail(self, mgr, tmp_path):
         fake = {0: tmp_path / "f.grib2"}
         fake[0].write_bytes(b"x")
-        with patch.object(mgr, "download_hours", return_value=fake), \
-             patch.object(mgr, "_build_single_var_ds",
-                          side_effect=RuntimeError("bad")), \
-             pytest.raises(RuntimeError, match="No variables could be extracted"):
+        with (
+            patch.object(mgr, "download_hours", return_value=fake),
+            patch.object(mgr, "_build_single_var_ds", side_effect=RuntimeError("bad")),
+            pytest.raises(RuntimeError, match="No variables could be extracted"),
+        ):
             mgr.build_multi_dataset(["t2m"], [0])
 
     def test_bad_var_skipped_rest_returned(self, mgr, tmp_path):
@@ -701,36 +775,46 @@ class TestBuildMultiDataset:
                 raise RuntimeError("fail")
             return _timed_ds(vk)
 
-        with patch.object(mgr, "download_hours", return_value=fake), \
-             patch.object(mgr, "_build_single_var_ds", side_effect=_side):
+        with (
+            patch.object(mgr, "download_hours", return_value=fake),
+            patch.object(mgr, "_build_single_var_ds", side_effect=_side),
+        ):
             ds = mgr.build_multi_dataset(["t2m", "prate"], [0])
         assert "prate" in ds and "t2m" not in ds
 
     def test_all_vars_in_merged(self, mgr, tmp_path):
         fake = {0: tmp_path / "f.grib2"}
         fake[0].write_bytes(b"x")
-        with patch.object(mgr, "download_hours", return_value=fake), \
-             patch.object(mgr, "_build_single_var_ds",
-                          side_effect=lambda vk, f: _timed_ds(vk)):
+        with (
+            patch.object(mgr, "download_hours", return_value=fake),
+            patch.object(
+                mgr, "_build_single_var_ds", side_effect=lambda vk, f: _timed_ds(vk)
+            ),
+        ):
             ds = mgr.build_multi_dataset(["t2m", "prate", "prmsl"], [0])
         assert all(v in ds for v in ["t2m", "prate", "prmsl"])
 
     def test_title_attr_contains_var_names(self, mgr, tmp_path):
         fake = {0: tmp_path / "f.grib2"}
         fake[0].write_bytes(b"x")
-        with patch.object(mgr, "download_hours", return_value=fake), \
-             patch.object(mgr, "_build_single_var_ds",
-                          side_effect=lambda vk, f: _timed_ds(vk)):
+        with (
+            patch.object(mgr, "download_hours", return_value=fake),
+            patch.object(
+                mgr, "_build_single_var_ds", side_effect=lambda vk, f: _timed_ds(vk)
+            ),
+        ):
             ds = mgr.build_multi_dataset(["t2m", "prate"], [0])
         assert "t2m" in ds.attrs["title"] and "prate" in ds.attrs["title"]
 
     def test_download_hours_called_exactly_once(self, mgr, tmp_path):
         fake = {0: tmp_path / "f.grib2"}
         fake[0].write_bytes(b"x")
-        with patch.object(mgr, "download_hours",
-                          return_value=fake) as mock_dl, \
-             patch.object(mgr, "_build_single_var_ds",
-                          side_effect=lambda vk, f: _timed_ds(vk)):
+        with (
+            patch.object(mgr, "download_hours", return_value=fake) as mock_dl,
+            patch.object(
+                mgr, "_build_single_var_ds", side_effect=lambda vk, f: _timed_ds(vk)
+            ),
+        ):
             mgr.build_multi_dataset(["t2m", "prate", "u10"], [0])
         mock_dl.assert_called_once()
 
@@ -739,18 +823,22 @@ class TestBuildMultiDataset:
 # 10 · save_netcdf / load_netcdf
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestNetCDF:
 
+class TestNetCDF:
     def _ds(self) -> xr.Dataset:
-        return xr.Dataset({"t2m": xr.DataArray(
-            np.random.rand(3, 10, 10).astype("float32"),
-            coords={
-                "time": [datetime(2026, 4, 3, h) for h in [6, 12, 18]],
-                "latitude":  np.linspace(-5, 5, 10),
-                "longitude": np.linspace(-75, -65, 10),
-            },
-            dims=["time", "latitude", "longitude"],
-        )})
+        return xr.Dataset(
+            {
+                "t2m": xr.DataArray(
+                    np.random.rand(3, 10, 10).astype("float32"),
+                    coords={
+                        "time": [datetime(2026, 4, 3, h) for h in [6, 12, 18]],
+                        "latitude": np.linspace(-5, 5, 10),
+                        "longitude": np.linspace(-75, -65, 10),
+                    },
+                    dims=["time", "latitude", "longitude"],
+                )
+            }
+        )
 
     def test_save_creates_file(self, mgr, tmp_path):
         assert mgr.save_netcdf(self._ds(), str(tmp_path / "o.nc")).exists()
@@ -793,21 +881,26 @@ class TestNetCDF:
 # 11 · save_zarr / load_zarr
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestZarr:
     """Zarr tests bypass .chunk() by patching noawclg.gfs_dataset.xr.Dataset.chunk
     at the module level to return the dataset unchanged, avoiding the Dask
     dependency in the test environment."""
 
     def _ds(self) -> xr.Dataset:
-        return xr.Dataset({"t2m": xr.DataArray(
-            np.random.rand(2, 8, 8).astype("float32"),
-            coords={
-                "time": [datetime(2026, 4, 3, 6), datetime(2026, 4, 3, 12)],
-                "latitude":  np.linspace(-5, 5, 8),
-                "longitude": np.linspace(-75, -67, 8),
-            },
-            dims=["time", "latitude", "longitude"],
-        )})
+        return xr.Dataset(
+            {
+                "t2m": xr.DataArray(
+                    np.random.rand(2, 8, 8).astype("float32"),
+                    coords={
+                        "time": [datetime(2026, 4, 3, 6), datetime(2026, 4, 3, 12)],
+                        "latitude": np.linspace(-5, 5, 8),
+                        "longitude": np.linspace(-75, -67, 8),
+                    },
+                    dims=["time", "latitude", "longitude"],
+                )
+            }
+        )
 
     def _save(self, mgr, ds, store_str):
         """Call save_zarr with .chunk() and .to_zarr() patched to be no-ops.
@@ -816,8 +909,10 @@ class TestZarr:
         the instance — xarray defines them via descriptors that are read-only
         on instances, so patch.object(instance, ...) raises AttributeError.
         """
-        with patch.object(xr.Dataset, "chunk", return_value=ds), \
-             patch.object(xr.Dataset, "to_zarr"):
+        with (
+            patch.object(xr.Dataset, "chunk", return_value=ds),
+            patch.object(xr.Dataset, "to_zarr"),
+        ):
             return mgr.save_zarr(ds, store_str)
 
     def test_save_creates_directory(self, mgr, tmp_path):
@@ -829,8 +924,12 @@ class TestZarr:
         """
         store = tmp_path / "o.zarr"
         calls: list = []
-        with patch.object(xr.Dataset, "chunk", return_value=self._ds()),              patch.object(xr.Dataset, "to_zarr",
-                          side_effect=lambda *a, **kw: calls.append(a)):
+        with (
+            patch.object(xr.Dataset, "chunk", return_value=self._ds()),
+            patch.object(
+                xr.Dataset, "to_zarr", side_effect=lambda *a, **kw: calls.append(a)
+            ),
+        ):
             result = mgr.save_zarr(self._ds(), str(store))
         assert isinstance(result, Path)
         assert result == store
@@ -857,11 +956,15 @@ class TestZarr:
         that was handed to it and verify it matches the original — confirming
         save_zarr does not mutate or drop variables before writing.
         """
-        ds    = self._ds()
+        ds = self._ds()
         store = tmp_path / "rt.zarr"
         captured: list = []
-        with patch.object(xr.Dataset, "chunk", return_value=ds),              patch.object(xr.Dataset, "to_zarr",
-                          side_effect=lambda *a, **kw: captured.append(ds)):
+        with (
+            patch.object(xr.Dataset, "chunk", return_value=ds),
+            patch.object(
+                xr.Dataset, "to_zarr", side_effect=lambda *a, **kw: captured.append(ds)
+            ),
+        ):
             mgr.save_zarr(ds, str(store))
         assert len(captured) == 1
         np.testing.assert_allclose(
@@ -869,7 +972,7 @@ class TestZarr:
         )
 
     def test_load_zarr_returns_dataset(self, mgr, tmp_path):
-        ds    = self._ds()
+        ds = self._ds()
         store = tmp_path / "ld.zarr"
         # save_zarr is fully mocked — no disk write needed
         self._save(mgr, ds, str(store))
@@ -883,8 +986,8 @@ class TestZarr:
 # 12 · Edge cases
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestEdgeCases:
 
+class TestEdgeCases:
     def test_del_does_not_raise(self, tmp_path):
         mgr = GFSDatasetManager(date="20260403", output_dir=str(tmp_path))
         mgr.__del__()

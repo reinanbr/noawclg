@@ -50,6 +50,7 @@ from urllib3.util.retry import Retry
 
 try:
     from tqdm import tqdm
+
     _HAS_TQDM = True
 except ImportError:
     _HAS_TQDM = False
@@ -61,521 +62,506 @@ LOG = logging.getLogger(__name__)
 # ══════════════════════════════════════════════════════════════════════════════
 
 VARIABLES: dict[str, dict[str, Any]] = {
-
     # ── 2-metre / surface single-level ───────────────────────────────────────
     "t2m": {
-        "short":     "t2m",
+        "short": "t2m",
         "long_name": "2 metre temperature",
-        "units":     "C",
-        "tlev":      "heightAboveGround",
-        "levels":    [2],
-        "grib_var":  "var_TMP",
-        "grib_lev":  "lev_2_m_above_ground",
+        "units": "C",
+        "tlev": "heightAboveGround",
+        "levels": [2],
+        "grib_var": "var_TMP",
+        "grib_lev": "lev_2_m_above_ground",
         "converter": lambda x: x - 273.15,
     },
     "d2m": {
-        "short":     "d2m",
+        "short": "d2m",
         "long_name": "2 metre dewpoint temperature",
-        "units":     "C",
-        "tlev":      "heightAboveGround",
-        "levels":    [2],
-        "grib_var":  "var_DPT",
-        "grib_lev":  "lev_2_m_above_ground",
+        "units": "C",
+        "tlev": "heightAboveGround",
+        "levels": [2],
+        "grib_var": "var_DPT",
+        "grib_lev": "lev_2_m_above_ground",
         "converter": lambda x: x - 273.15,
     },
     "r2": {
-        "short":     "r2",
+        "short": "r2",
         "long_name": "2 metre relative humidity",
-        "units":     "%",
-        "tlev":      "heightAboveGround",
-        "levels":    [2],
-        "grib_var":  "var_RH",
-        "grib_lev":  "lev_2_m_above_ground",
+        "units": "%",
+        "tlev": "heightAboveGround",
+        "levels": [2],
+        "grib_var": "var_RH",
+        "grib_lev": "lev_2_m_above_ground",
         "converter": None,
     },
     "sh2": {
-        "short":     "sh2",
+        "short": "sh2",
         "long_name": "2 metre specific humidity",
-        "units":     "kg kg**-1",
-        "tlev":      "heightAboveGround",
-        "levels":    [2],
-        "grib_var":  "var_SPFH",
-        "grib_lev":  "lev_2_m_above_ground",
+        "units": "kg kg**-1",
+        "tlev": "heightAboveGround",
+        "levels": [2],
+        "grib_var": "var_SPFH",
+        "grib_lev": "lev_2_m_above_ground",
         "converter": None,
     },
     "aptmp": {
-        "short":     "aptmp",
+        "short": "aptmp",
         "long_name": "Apparent temperature",
-        "units":     "C",
-        "tlev":      "heightAboveGround",
-        "levels":    [2],
-        "grib_var":  "var_APTMP",
-        "grib_lev":  "lev_2_m_above_ground",
+        "units": "C",
+        "tlev": "heightAboveGround",
+        "levels": [2],
+        "grib_var": "var_APTMP",
+        "grib_lev": "lev_2_m_above_ground",
         "converter": lambda x: x - 273.15,
     },
-
     # ── 10-metre wind ─────────────────────────────────────────────────────────
     "u10": {
-        "short":     "u10",
+        "short": "u10",
         "long_name": "10 metre U wind component",
-        "units":     "m s**-1",
-        "tlev":      "heightAboveGround",
-        "levels":    [10],
-        "grib_var":  "var_UGRD",
-        "grib_lev":  "lev_10_m_above_ground",
+        "units": "m s**-1",
+        "tlev": "heightAboveGround",
+        "levels": [10],
+        "grib_var": "var_UGRD",
+        "grib_lev": "lev_10_m_above_ground",
         "converter": None,
     },
     "v10": {
-        "short":     "v10",
+        "short": "v10",
         "long_name": "10 metre V wind component",
-        "units":     "m s**-1",
-        "tlev":      "heightAboveGround",
-        "levels":    [10],
-        "grib_var":  "var_VGRD",
-        "grib_lev":  "lev_10_m_above_ground",
+        "units": "m s**-1",
+        "tlev": "heightAboveGround",
+        "levels": [10],
+        "grib_var": "var_VGRD",
+        "grib_lev": "lev_10_m_above_ground",
         "converter": None,
     },
     "gust": {
-        "short":     "gust",
+        "short": "gust",
         "long_name": "Wind speed (gust)",
-        "units":     "m s**-1",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_GUST",
-        "grib_lev":  "lev_surface",
+        "units": "m s**-1",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_GUST",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
-
     # ── surface / single-level ────────────────────────────────────────────────
     "prmsl": {
-        "short":     "prmsl",
+        "short": "prmsl",
         "long_name": "Pressure reduced to MSL",
-        "units":     "hPa",
-        "tlev":      "meanSea",
-        "levels":    None,
-        "grib_var":  "var_PRMSL",
-        "grib_lev":  "lev_mean_sea_level",
+        "units": "hPa",
+        "tlev": "meanSea",
+        "levels": None,
+        "grib_var": "var_PRMSL",
+        "grib_lev": "lev_mean_sea_level",
         "converter": lambda x: x / 100,
     },
     "mslet": {
-        "short":     "mslet",
+        "short": "mslet",
         "long_name": "MSLP (Eta model reduction)",
-        "units":     "hPa",
-        "tlev":      "meanSea",
-        "levels":    None,
-        "grib_var":  "var_MSLET",
-        "grib_lev":  "lev_mean_sea_level",
+        "units": "hPa",
+        "tlev": "meanSea",
+        "levels": None,
+        "grib_var": "var_MSLET",
+        "grib_lev": "lev_mean_sea_level",
         "converter": lambda x: x / 100,
     },
     "sp": {
-        "short":     "sp",
+        "short": "sp",
         "long_name": "Surface pressure",
-        "units":     "hPa",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_PRES",
-        "grib_lev":  "lev_surface",
+        "units": "hPa",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_PRES",
+        "grib_lev": "lev_surface",
         "converter": lambda x: x / 100,
     },
     "orog": {
-        "short":     "orog",
+        "short": "orog",
         "long_name": "Orography",
-        "units":     "m",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_HGT",
-        "grib_lev":  "lev_surface",
+        "units": "m",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_HGT",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "lsm": {
-        "short":     "lsm",
+        "short": "lsm",
         "long_name": "Land-sea mask",
-        "units":     "0 - 1",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_LAND",
-        "grib_lev":  "lev_surface",
+        "units": "0 - 1",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_LAND",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "vis": {
-        "short":     "vis",
+        "short": "vis",
         "long_name": "Visibility",
-        "units":     "m",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_VIS",
-        "grib_lev":  "lev_surface",
+        "units": "m",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_VIS",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
-
     # ── precipitation / hydrology ─────────────────────────────────────────────
     "prate": {
-        "short":     "prate",
+        "short": "prate",
         "long_name": "Precipitation rate",
-        "units":     "kg m**-2 s**-1",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_PRATE",
-        "grib_lev":  "lev_surface",
+        "units": "kg m**-2 s**-1",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_PRATE",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "cpofp": {
-        "short":     "cpofp",
+        "short": "cpofp",
         "long_name": "Percent frozen precipitation",
-        "units":     "%",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_CPOFP",
-        "grib_lev":  "lev_surface",
+        "units": "%",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_CPOFP",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "crain": {
-        "short":     "crain",
+        "short": "crain",
         "long_name": "Categorical rain",
-        "units":     "Code table 4.222",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_CRAIN",
-        "grib_lev":  "lev_surface",
+        "units": "Code table 4.222",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_CRAIN",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "csnow": {
-        "short":     "csnow",
+        "short": "csnow",
         "long_name": "Categorical snow",
-        "units":     "Code table 4.222",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_CSNOW",
-        "grib_lev":  "lev_surface",
+        "units": "Code table 4.222",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_CSNOW",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "cfrzr": {
-        "short":     "cfrzr",
+        "short": "cfrzr",
         "long_name": "Categorical freezing rain",
-        "units":     "Code table 4.222",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_CFRZR",
-        "grib_lev":  "lev_surface",
+        "units": "Code table 4.222",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_CFRZR",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "cicep": {
-        "short":     "cicep",
+        "short": "cicep",
         "long_name": "Categorical ice pellets",
-        "units":     "Code table 4.222",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_CICEP",
-        "grib_lev":  "lev_surface",
+        "units": "Code table 4.222",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_CICEP",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "sde": {
-        "short":     "sde",
+        "short": "sde",
         "long_name": "Snow depth",
-        "units":     "m",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_SNOD",
-        "grib_lev":  "lev_surface",
+        "units": "m",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_SNOD",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "sdwe": {
-        "short":     "sdwe",
+        "short": "sdwe",
         "long_name": "Water equivalent of accumulated snow depth",
-        "units":     "kg m**-2",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_WEASD",
-        "grib_lev":  "lev_surface",
+        "units": "kg m**-2",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_WEASD",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "pwat": {
-        "short":     "pwat",
+        "short": "pwat",
         "long_name": "Precipitable water",
-        "units":     "kg m**-2",
-        "tlev":      "atmosphereSingleLayer",
-        "levels":    None,
-        "grib_var":  "var_PWAT",
-        "grib_lev":  "lev_entire_atmosphere_(considered_as_a_single_layer)",
+        "units": "kg m**-2",
+        "tlev": "atmosphereSingleLayer",
+        "levels": None,
+        "grib_var": "var_PWAT",
+        "grib_lev": "lev_entire_atmosphere_(considered_as_a_single_layer)",
         "converter": None,
     },
     "cwat": {
-        "short":     "cwat",
+        "short": "cwat",
         "long_name": "Cloud water",
-        "units":     "kg m**-2",
-        "tlev":      "atmosphere",
-        "levels":    None,
-        "grib_var":  "var_CWAT",
-        "grib_lev":  "lev_entire_atmosphere",
+        "units": "kg m**-2",
+        "tlev": "atmosphere",
+        "levels": None,
+        "grib_var": "var_CWAT",
+        "grib_lev": "lev_entire_atmosphere",
         "converter": None,
     },
-
     # ── cloud cover ───────────────────────────────────────────────────────────
     "tcc": {
-        "short":     "tcc",
+        "short": "tcc",
         "long_name": "Total cloud cover",
-        "units":     "%",
-        "tlev":      "atmosphere",
-        "levels":    None,
-        "grib_var":  "var_TCDC",
-        "grib_lev":  "lev_entire_atmosphere",
+        "units": "%",
+        "tlev": "atmosphere",
+        "levels": None,
+        "grib_var": "var_TCDC",
+        "grib_lev": "lev_entire_atmosphere",
         "converter": None,
     },
     "lcc": {
-        "short":     "lcc",
+        "short": "lcc",
         "long_name": "Low cloud cover",
-        "units":     "%",
-        "tlev":      "lowCloudLayer",
-        "levels":    None,
-        "grib_var":  "var_TCDC",
-        "grib_lev":  "lev_low_cloud_layer",
+        "units": "%",
+        "tlev": "lowCloudLayer",
+        "levels": None,
+        "grib_var": "var_TCDC",
+        "grib_lev": "lev_low_cloud_layer",
         "converter": None,
     },
     "mcc": {
-        "short":     "mcc",
+        "short": "mcc",
         "long_name": "Medium cloud cover",
-        "units":     "%",
-        "tlev":      "middleCloudLayer",
-        "levels":    None,
-        "grib_var":  "var_TCDC",
-        "grib_lev":  "lev_middle_cloud_layer",
+        "units": "%",
+        "tlev": "middleCloudLayer",
+        "levels": None,
+        "grib_var": "var_TCDC",
+        "grib_lev": "lev_middle_cloud_layer",
         "converter": None,
     },
     "hcc": {
-        "short":     "hcc",
+        "short": "hcc",
         "long_name": "High cloud cover",
-        "units":     "%",
-        "tlev":      "highCloudLayer",
-        "levels":    None,
-        "grib_var":  "var_TCDC",
-        "grib_lev":  "lev_high_cloud_layer",
+        "units": "%",
+        "tlev": "highCloudLayer",
+        "levels": None,
+        "grib_var": "var_TCDC",
+        "grib_lev": "lev_high_cloud_layer",
         "converter": None,
     },
-
     # ── convection / instability ──────────────────────────────────────────────
     "cape": {
-        "short":     "cape",
+        "short": "cape",
         "long_name": "Convective available potential energy",
-        "units":     "J kg**-1",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_CAPE",
-        "grib_lev":  "lev_surface",
+        "units": "J kg**-1",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_CAPE",
+        "grib_lev": "lev_surface",
         "converter": None,
         "multilevel": True,
     },
     "cin": {
-        "short":     "cin",
+        "short": "cin",
         "long_name": "Convective inhibition",
-        "units":     "J kg**-1",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_CIN",
-        "grib_lev":  "lev_surface",
+        "units": "J kg**-1",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_CIN",
+        "grib_lev": "lev_surface",
         "converter": None,
         "multilevel": True,
     },
     "lftx": {
-        "short":     "lftx",
+        "short": "lftx",
         "long_name": "Surface lifted index",
-        "units":     "K",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_LFTX",
-        "grib_lev":  "lev_surface",
+        "units": "K",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_LFTX",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "lftx4": {
-        "short":     "lftx4",
+        "short": "lftx4",
         "long_name": "Best (4-layer) lifted index",
-        "units":     "K",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_4LFTX",
-        "grib_lev":  "lev_surface",
+        "units": "K",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_4LFTX",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "hlcy": {
-        "short":     "hlcy",
+        "short": "hlcy",
         "long_name": "Storm relative helicity",
-        "units":     "m**2 s**-2",
-        "tlev":      "heightAboveGroundLayer",
-        "levels":    None,
-        "grib_var":  "var_HLCY",
-        "grib_lev":  "lev_height_above_ground_layer",
+        "units": "m**2 s**-2",
+        "tlev": "heightAboveGroundLayer",
+        "levels": None,
+        "grib_var": "var_HLCY",
+        "grib_lev": "lev_height_above_ground_layer",
         "converter": None,
     },
-
     # ── upper-air multi-level (isobaric) ──────────────────────────────────────
     "t": {
-        "short":     "t",
+        "short": "t",
         "long_name": "Temperature",
-        "units":     "C",
-        "tlev":      "isobaricInhPa",
-        "levels":    [80, 100, 150, 200, 250, 300, 400, 500,
-                      600, 700, 850, 925, 1000],
-        "grib_var":  "var_TMP",
-        "grib_lev":  "lev_mb",
+        "units": "C",
+        "tlev": "isobaricInhPa",
+        "levels": [80, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000],
+        "grib_var": "var_TMP",
+        "grib_lev": "lev_mb",
         "converter": lambda x: x - 273.15,
         "multilevel": True,
     },
     "r": {
-        "short":     "r",
+        "short": "r",
         "long_name": "Relative humidity",
-        "units":     "%",
-        "tlev":      "isobaricInhPa",
-        "levels":    [80, 100, 150, 200, 250, 300, 400, 500,
-                      600, 700, 850, 925, 1000],
-        "grib_var":  "var_RH",
-        "grib_lev":  "lev_mb",
+        "units": "%",
+        "tlev": "isobaricInhPa",
+        "levels": [80, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000],
+        "grib_var": "var_RH",
+        "grib_lev": "lev_mb",
         "converter": None,
         "multilevel": True,
     },
     "q": {
-        "short":     "q",
+        "short": "q",
         "long_name": "Specific humidity",
-        "units":     "kg kg**-1",
-        "tlev":      "isobaricInhPa",
-        "levels":    [80, 1000],
-        "grib_var":  "var_SPFH",
-        "grib_lev":  "lev_mb",
+        "units": "kg kg**-1",
+        "tlev": "isobaricInhPa",
+        "levels": [80, 1000],
+        "grib_var": "var_SPFH",
+        "grib_lev": "lev_mb",
         "converter": None,
         "multilevel": True,
     },
     "gh": {
-        "short":     "gh",
+        "short": "gh",
         "long_name": "Geopotential height",
-        "units":     "gpm",
-        "tlev":      "isobaricInhPa",
-        "levels":    [500, 700, 850, 925, 1000],
-        "grib_var":  "var_HGT",
-        "grib_lev":  "lev_mb",
+        "units": "gpm",
+        "tlev": "isobaricInhPa",
+        "levels": [500, 700, 850, 925, 1000],
+        "grib_var": "var_HGT",
+        "grib_lev": "lev_mb",
         "converter": None,
         "multilevel": True,
     },
     "u": {
-        "short":     "u",
+        "short": "u",
         "long_name": "U component of wind",
-        "units":     "m s**-1",
-        "tlev":      "isobaricInhPa",
-        "levels":    [200, 250, 300, 400, 500, 700, 850, 925, 1000],
-        "grib_var":  "var_UGRD",
-        "grib_lev":  "lev_mb",
+        "units": "m s**-1",
+        "tlev": "isobaricInhPa",
+        "levels": [200, 250, 300, 400, 500, 700, 850, 925, 1000],
+        "grib_var": "var_UGRD",
+        "grib_lev": "lev_mb",
         "converter": None,
         "multilevel": True,
     },
     "v": {
-        "short":     "v",
+        "short": "v",
         "long_name": "V component of wind",
-        "units":     "m s**-1",
-        "tlev":      "isobaricInhPa",
-        "levels":    [200, 250, 300, 400, 500, 700, 850, 925, 1000],
-        "grib_var":  "var_VGRD",
-        "grib_lev":  "lev_mb",
+        "units": "m s**-1",
+        "tlev": "isobaricInhPa",
+        "levels": [200, 250, 300, 400, 500, 700, 850, 925, 1000],
+        "grib_var": "var_VGRD",
+        "grib_lev": "lev_mb",
         "converter": None,
         "multilevel": True,
     },
     "w": {
-        "short":     "w",
+        "short": "w",
         "long_name": "Vertical velocity",
-        "units":     "Pa s**-1",
-        "tlev":      "isobaricInhPa",
-        "levels":    [100, 200, 300, 400, 500, 600, 700, 850],
-        "grib_var":  "var_VVEL",
-        "grib_lev":  "lev_mb",
+        "units": "Pa s**-1",
+        "tlev": "isobaricInhPa",
+        "levels": [100, 200, 300, 400, 500, 600, 700, 850],
+        "grib_var": "var_VVEL",
+        "grib_lev": "lev_mb",
         "converter": None,
         "multilevel": True,
     },
     "absv": {
-        "short":     "absv",
+        "short": "absv",
         "long_name": "Absolute vorticity",
-        "units":     "s**-1",
-        "tlev":      "isobaricInhPa",
-        "levels":    [100, 200, 300, 400, 500, 700, 850, 1000],
-        "grib_var":  "var_ABSV",
-        "grib_lev":  "lev_mb",
+        "units": "s**-1",
+        "tlev": "isobaricInhPa",
+        "levels": [100, 200, 300, 400, 500, 700, 850, 1000],
+        "grib_var": "var_ABSV",
+        "grib_lev": "lev_mb",
         "converter": None,
         "multilevel": True,
     },
-
     # ── soil (4-layer) ────────────────────────────────────────────────────────
     "st": {
-        "short":     "st",
+        "short": "st",
         "long_name": "Soil temperature",
-        "units":     "C",
-        "tlev":      "depthBelowLandLayer",
-        "levels":    [0, 10, 40, 100],
-        "grib_var":  "var_TSOIL",
-        "grib_lev":  "lev_depth_below_land_layer",
+        "units": "C",
+        "tlev": "depthBelowLandLayer",
+        "levels": [0, 10, 40, 100],
+        "grib_var": "var_TSOIL",
+        "grib_lev": "lev_depth_below_land_layer",
         "converter": lambda x: x - 273.15,
         "multilevel": True,
     },
     "soilw": {
-        "short":     "soilw",
+        "short": "soilw",
         "long_name": "Volumetric soil moisture content",
-        "units":     "Proportion",
-        "tlev":      "depthBelowLandLayer",
-        "levels":    [0, 10, 40, 100],
-        "grib_var":  "var_SOILW",
-        "grib_lev":  "lev_depth_below_land_layer",
+        "units": "Proportion",
+        "tlev": "depthBelowLandLayer",
+        "levels": [0, 10, 40, 100],
+        "grib_var": "var_SOILW",
+        "grib_lev": "lev_depth_below_land_layer",
         "converter": None,
         "multilevel": True,
     },
-
     # ── diagnostics ───────────────────────────────────────────────────────────
     "refc": {
-        "short":     "refc",
+        "short": "refc",
         "long_name": "Maximum/Composite radar reflectivity",
-        "units":     "dB",
-        "tlev":      "atmosphere",
-        "levels":    None,
-        "grib_var":  "var_REFC",
-        "grib_lev":  "lev_entire_atmosphere",
+        "units": "dB",
+        "tlev": "atmosphere",
+        "levels": None,
+        "grib_var": "var_REFC",
+        "grib_lev": "lev_entire_atmosphere",
         "converter": None,
     },
     "siconc": {
-        "short":     "siconc",
+        "short": "siconc",
         "long_name": "Sea ice area fraction",
-        "units":     "0 - 1",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_ICEC",
-        "grib_lev":  "lev_surface",
+        "units": "0 - 1",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_ICEC",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "veg": {
-        "short":     "veg",
+        "short": "veg",
         "long_name": "Vegetation",
-        "units":     "%",
-        "tlev":      "surface",
-        "levels":    None,
-        "grib_var":  "var_VEG",
-        "grib_lev":  "lev_surface",
+        "units": "%",
+        "tlev": "surface",
+        "levels": None,
+        "grib_var": "var_VEG",
+        "grib_lev": "lev_surface",
         "converter": None,
     },
     "tozne": {
-        "short":     "tozne",
+        "short": "tozne",
         "long_name": "Total ozone",
-        "units":     "DU",
-        "tlev":      "atmosphere",
-        "levels":    None,
-        "grib_var":  "var_TOZNE",
-        "grib_lev":  "lev_entire_atmosphere",
+        "units": "DU",
+        "tlev": "atmosphere",
+        "levels": None,
+        "grib_var": "var_TOZNE",
+        "grib_lev": "lev_entire_atmosphere",
         "converter": None,
     },
 }
 
 # ── convenient subsets ────────────────────────────────────────────────────────
-SURFACE_VARS: list[str] = [
-    k for k, v in VARIABLES.items() if not v.get("multilevel")
-]
-MULTILEVEL_VARS: list[str] = [
-    k for k, v in VARIABLES.items() if v.get("multilevel")
-]
+SURFACE_VARS: list[str] = [k for k, v in VARIABLES.items() if not v.get("multilevel")]
+MULTILEVEL_VARS: list[str] = [k for k, v in VARIABLES.items() if v.get("multilevel")]
 
 # ── pre-defined hour sequences ────────────────────────────────────────────────
-HOURS_16DAYS    = list(range(0, 121, 6)) + list(range(123, 385, 3))
-HOURS_5DAYS_1H  = list(range(0, 121))
+HOURS_16DAYS = list(range(0, 121, 6)) + list(range(123, 385, 3))
+HOURS_5DAYS_1H = list(range(0, 121))
 HOURS_10DAYS_3H = list(range(0, 241, 3))
 HOURS_16DAYS_3H = list(range(0, 121, 3)) + list(range(123, 385, 3))
 
@@ -619,13 +605,14 @@ def _build_session() -> requests.Session:
     s.headers.update(_HEADERS)
     adapter = HTTPAdapter(max_retries=_RETRY)
     s.mount("https://", adapter)
-    s.mount("http://",  adapter)
+    s.mount("http://", adapter)
     return s
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Manager
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class GFSDatasetManager:
     """Download GFS GRIB2 files (once per hour) and assemble xarray Datasets.
@@ -693,14 +680,14 @@ class GFSDatasetManager:
         if cycle not in {"00", "06", "12", "18"}:
             raise ValueError("cycle must be one of: 00, 06, 12, 18")
 
-        self.date       = date
-        self.cycle      = cycle
-        self.output_dir = Path(output_dir).resolve()   # always absolute
-        self.region     = region
-        self.pause      = pause
+        self.date = date
+        self.cycle = cycle
+        self.output_dir = Path(output_dir).resolve()  # always absolute
+        self.region = region
+        self.pause = pause
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._run_dt    = datetime.strptime(f"{date}{cycle}", "%Y%m%d%H")
-        self._session   = _build_session()
+        self._run_dt = datetime.strptime(f"{date}{cycle}", "%Y%m%d%H")
+        self._session = _build_session()
 
     # ── private helpers ───────────────────────────────────────────────────────
 
@@ -738,7 +725,7 @@ class GFSDatasetManager:
         seen: set[str] = set()
         parts: list[str] = []
         for vk in var_keys:
-            cfg  = VARIABLES[vk]
+            cfg = VARIABLES[vk]
             pair = f"&{cfg['grib_var']}=on&{cfg['grib_lev']}=on"
             if pair not in seen:
                 seen.add(pair)
@@ -785,7 +772,7 @@ class GFSDatasetManager:
         """
         tag = "global"
         if self.region:
-            r   = self.region
+            r = self.region
             tag = (
                 f"{r['toplat']}N{abs(r['bottomlat'])}S"
                 f"{abs(r['leftlon'])}W{r['rightlon']}E"
@@ -863,21 +850,24 @@ class GFSDatasetManager:
 
         LOG.info(
             "Download: %d hour(s) × 1 file each = %d request(s)  (vars: %s)",
-            len(hours_to_fetch), len(hours_to_fetch), var_keys,
+            len(hours_to_fetch),
+            len(hours_to_fetch),
+            var_keys,
         )
 
         iterator = (
             tqdm(hours_to_fetch, desc="GFS download", unit="h")
-            if _HAS_TQDM else hours_to_fetch
+            if _HAS_TQDM
+            else hours_to_fetch
         )
-        total   = len(hours_to_fetch)
+        total = len(hours_to_fetch)
         counter = 0
         t_start = time.time()
 
         for hour in iterator:
-            t_iter    = time.time()
-            path      = self._cache_path(var_keys, hour)
-            url       = self._filter_url(var_keys, hour)
+            t_iter = time.time()
+            path = self._cache_path(var_keys, hour)
+            url = self._filter_url(var_keys, hour)
             var_label = var_keys[0] if len(var_keys) == 1 else "multi"
             LOG.info("[%s] → f%03d  %s", var_label, hour, url[:120])
 
@@ -887,7 +877,9 @@ class GFSDatasetManager:
                 if resp.status_code != 200:
                     LOG.warning(
                         "var=%s  f%03d: HTTP %d — skipping",
-                        var_label, hour, resp.status_code,
+                        var_label,
+                        hour,
+                        resp.status_code,
                     )
                     time.sleep(self.pause)
                     continue
@@ -902,21 +894,27 @@ class GFSDatasetManager:
                 if bytes_written < 100:
                     LOG.warning(
                         "var=%s  f%03d: empty response (%d bytes) — discarding",
-                        var_label, hour, bytes_written,
+                        var_label,
+                        hour,
+                        bytes_written,
                     )
                     path.unlink(missing_ok=True)
                 else:
                     results[hour] = path
-                    counter  += 1
-                    elapsed   = time.time() - t_start
-                    ping      = time.time() - t_iter
+                    counter += 1
+                    elapsed = time.time() - t_start
+                    ping = time.time() - t_iter
                     remaining = ping * (total - counter)
                     LOG.info(
                         "  [ok] f%03d  %.0f KB  |  %.1f%%  (%d/%d)"
                         "  elapsed=%.1fs  remaining≈%.1fs",
-                        hour, bytes_written / 1024,
-                        (counter / total) * 100, counter, total,
-                        elapsed, remaining,
+                        hour,
+                        bytes_written / 1024,
+                        (counter / total) * 100,
+                        counter,
+                        total,
+                        elapsed,
+                        remaining,
                     )
 
             except requests.RequestException as exc:
@@ -954,7 +952,7 @@ class GFSDatasetManager:
                 data variable if extraction succeeded, or ``None`` if all
                 strategies failed (a warning is logged in that case).
         """
-        cfg   = VARIABLES[var_key]
+        cfg = VARIABLES[var_key]
         is_ml = bool(cfg.get("multilevel"))
 
         def _non_empty(ds: xr.Dataset) -> xr.Dataset | None:
@@ -962,7 +960,7 @@ class GFSDatasetManager:
             return ds if len(ds.data_vars) > 0 else None
 
         base_tlev = {"typeOfLevel": cfg["tlev"]}
-        f_short   = {**base_tlev, "shortName": cfg["short"]}
+        f_short = {**base_tlev, "shortName": cfg["short"]}
 
         candidates: list[dict] = []
         if not is_ml and cfg.get("levels"):
@@ -976,12 +974,14 @@ class GFSDatasetManager:
 
         for filters in candidates:
             try:
-                ds     = cfgrib.open_dataset(path, filter_by_keys=filters, indexpath=None)
+                ds = cfgrib.open_dataset(path, filter_by_keys=filters, indexpath=None)
                 result = _non_empty(ds)
                 if result is not None:
                     LOG.debug(
                         "'%s' found with filters %s → vars: %s",
-                        var_key, filters, list(ds.data_vars),
+                        var_key,
+                        filters,
+                        list(ds.data_vars),
                     )
                     return result
             except Exception as exc:
@@ -992,14 +992,14 @@ class GFSDatasetManager:
             all_ds = cfgrib.open_datasets(path, indexpath=None)
             LOG.debug("'%s': full scan — %d sub-datasets found", var_key, len(all_ds))
 
-            for ds in all_ds:   # pass 1: shortName match
+            for ds in all_ds:  # pass 1: shortName match
                 if not ds.data_vars:
                     continue
                 if cfg["short"] in ds.data_vars:
                     LOG.debug("'%s' found via full scan (shortName match)", var_key)
                     return ds
 
-            for ds in all_ds:   # pass 2: typeOfLevel match
+            for ds in all_ds:  # pass 2: typeOfLevel match
                 if not ds.data_vars:
                     continue
                 tlev_val: str | None = None
@@ -1014,7 +1014,8 @@ class GFSDatasetManager:
                 if tlev_val == cfg["tlev"]:
                     LOG.debug(
                         "'%s' found via full scan (typeOfLevel=%s)",
-                        var_key, tlev_val,
+                        var_key,
+                        tlev_val,
                     )
                     return ds
 
@@ -1063,10 +1064,10 @@ class GFSDatasetManager:
             LOG.warning("'%s': dataset has no variables — skipping timestep", var_key)
             return None
 
-        cfg   = VARIABLES[var_key]
+        cfg = VARIABLES[var_key]
         is_ml = bool(cfg.get("multilevel"))
-        name  = list(ds.data_vars)[0]
-        da    = ds[name]
+        name = list(ds.data_vars)[0]
+        da = ds[name]
 
         # ── lat/lon coordinates ───────────────────────────────────────────────
         if "latitude" in da.coords:
@@ -1094,9 +1095,9 @@ class GFSDatasetManager:
         # ── normalise longitudes 0–360 → –180–180 ─────────────────────────────
         if lons_raw.ndim == 1 and lons_raw.max() > 180:
             lons_norm = np.where(lons_raw > 180, lons_raw - 360, lons_raw)
-            sort_idx  = np.argsort(lons_norm)
-            lons_raw  = lons_norm[sort_idx]
-            da_vals   = da_vals[..., sort_idx]
+            sort_idx = np.argsort(lons_norm)
+            lons_raw = lons_norm[sort_idx]
+            da_vals = da_vals[..., sort_idx]
 
         # ── strip leading singleton dims while preserving spatial structure ────
         keep_ndim = 3 if is_ml else 2
@@ -1106,7 +1107,8 @@ class GFSDatasetManager:
         if da_vals.ndim < 2:
             LOG.warning(
                 "'%s': unexpected shape %s after dim reduction — skipping",
-                var_key, da.shape,
+                var_key,
+                da.shape,
             )
             return None
 
@@ -1156,18 +1158,18 @@ class GFSDatasetManager:
             RuntimeError: If no timestep produced valid data after attempting
                 all files.
         """
-        cfg        = VARIABLES[var_key]
-        is_ml      = bool(cfg.get("multilevel"))
-        slices     : list[np.ndarray] = []
-        times      : list[datetime]   = []
-        fhours     : list[int]        = []
-        lats_ref   = None
-        lons_ref   = None
+        cfg = VARIABLES[var_key]
+        is_ml = bool(cfg.get("multilevel"))
+        slices: list[np.ndarray] = []
+        times: list[datetime] = []
+        fhours: list[int] = []
+        lats_ref = None
+        lons_ref = None
         levels_ref = None
 
         for hour in sorted(files):
             path = files[hour]
-            ds   = self._open_var(path, var_key)
+            ds = self._open_var(path, var_key)
             if ds is None:
                 continue
 
@@ -1182,8 +1184,12 @@ class GFSDatasetManager:
 
             if is_ml and data.ndim == 3 and levels_ref is None:
                 # Explicit None check — bool(DataArray) raises ValueError.
-                _lev_names = ["isobaricInhPa", "depthBelowLandLayer",
-                               "heightAboveGround", "level"]
+                _lev_names = [
+                    "isobaricInhPa",
+                    "depthBelowLandLayer",
+                    "heightAboveGround",
+                    "level",
+                ]
                 lev_coord = None
                 for _n in _lev_names:
                     _c = ds.coords.get(_n)
@@ -1206,17 +1212,16 @@ class GFSDatasetManager:
         stacked = np.stack(slices, axis=0)  # (time, [level,] lat, lon)
 
         coords: dict[str, Any] = {
-            "time":          ("time", times),
+            "time": ("time", times),
             "forecast_hour": ("time", fhours),
-            "latitude":      lats_ref,
-            "longitude":     lons_ref,
+            "latitude": lats_ref,
+            "longitude": lons_ref,
         }
 
         if is_ml and stacked.ndim == 4:
             dims = ["time", "level", "latitude", "longitude"]
             coords["level"] = (
-                levels_ref if levels_ref is not None
-                else list(range(stacked.shape[1]))
+                levels_ref if levels_ref is not None else list(range(stacked.shape[1]))
             )
         else:
             dims = ["time", "latitude", "longitude"]
@@ -1228,19 +1233,19 @@ class GFSDatasetManager:
                     dims=dims,
                     attrs={
                         "long_name": cfg["long_name"],
-                        "units":     cfg["units"],
-                        "gfs_run":   f"{self.date} {self.cycle}Z",
+                        "units": cfg["units"],
+                        "gfs_run": f"{self.date} {self.cycle}Z",
                     },
                 )
             },
             coords=coords,
             attrs={
-                "title":       f"GFS 0.25° — {cfg['long_name']}",
+                "title": f"GFS 0.25° — {cfg['long_name']}",
                 "institution": "NCEP/NOAA",
-                "source":      "GFS model output (NOMADS)",
-                "run_date":    self.date,
-                "run_cycle":   self.cycle,
-                "created":     datetime.utcnow().isoformat() + "Z",
+                "source": "GFS model output (NOMADS)",
+                "run_date": self.date,
+                "run_cycle": self.cycle,
+                "created": datetime.utcnow().isoformat() + "Z",
             },
         )
 
@@ -1392,12 +1397,9 @@ class GFSDatasetManager:
         if not path.is_absolute():
             path = self.output_dir / path
 
-        encoding = {
-            v: {"zlib": True, "complevel": complevel}
-            for v in ds.data_vars
-        }
+        encoding = {v: {"zlib": True, "complevel": complevel} for v in ds.data_vars}
         ds.to_netcdf(path, encoding=encoding)
-        mb = path.stat().st_size / 1024 ** 2
+        mb = path.stat().st_size / 1024**2
         LOG.info("Saved NetCDF: %s  (%.1f MB)", path, mb)
         print(f"[save] NetCDF → {path}  ({mb:.1f} MB)")
         return path
