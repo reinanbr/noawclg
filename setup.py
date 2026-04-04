@@ -25,6 +25,6 @@ setup(
         "requests",
         "geopy",
         "openpyxl",
-        "numpy"
+        "numpy",
     ],
 )
