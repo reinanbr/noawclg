@@ -89,7 +89,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e .
-          pip install pytest pytest-cov
+          pip install pytest pytest-cov numpy xarray requests urllib3 netCDF4 cfgrib eccodes
 
       - name: Run tests (offline only — skip integration)
         shell: bash

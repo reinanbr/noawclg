@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="noawclg",
-    version="2.1.11",
+    version="2.1.12",
     url="https://github.com/reinanbr/noawclg",
     license="GPLv3",
     author="Reinan Br",
@@ -25,5 +25,6 @@ setup(
         "requests",
         "geopy",
         "openpyxl",
+        "numpy"
     ],
 )
