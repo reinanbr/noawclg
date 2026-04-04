@@ -1032,23 +1032,18 @@ class TestIntegration:
             timeout=15,
             headers={"User-Agent": "noawclg-ci-healthcheck/1.0"},
         )
-        assert r.status_code < 500, (
-            f"NOMADS returned unexpected status {r.status_code}"
-        )
+        assert r.status_code < 500, f"NOMADS returned unexpected status {r.status_code}"
 
     def test_filter_endpoint_reachable(self):
         """O endpoint grib-filter deve aceitar requisições HEAD sem erro 5xx."""
         import requests
 
-        url = (
-            "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25_1hr.pl"
+        url = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25_1hr.pl"
+        r = requests.head(
+            url, timeout=15, headers={"User-Agent": "noawclg-ci-healthcheck/1.0"}
         )
-        r = requests.head(url, timeout=15,
-                          headers={"User-Agent": "noawclg-ci-healthcheck/1.0"})
         # 400/404 são aceitáveis (sem parâmetros); 5xx indica falha do servidor
-        assert r.status_code < 500, (
-            f"grib-filter endpoint returned {r.status_code}"
-        )
+        assert r.status_code < 500, f"grib-filter endpoint returned {r.status_code}"
 
     def test_download_single_hour(self, tmp_path):
         """Baixa hora 0 da variável t2m e verifica que o arquivo tem > 1 KB."""
@@ -1060,10 +1055,11 @@ class TestIntegration:
             date=today,
             cycle="00",
             output_dir=str(tmp_path),
-            region={"toplat": 5, "bottomlat": -35,
-                    "leftlon": -75, "rightlon": -34},
+            region={"toplat": 5, "bottomlat": -35, "leftlon": -75, "rightlon": -34},
             pause=2.0,
         )
         files = mgr.download_hours(["t2m"], hours=[0])
         assert 0 in files, "Hora 0 não foi baixada — NOMADS pode estar indisponível"
-        assert files[0].stat().st_size > 1024, "Arquivo muito pequeno — possível resposta vazia"
+        assert files[0].stat().st_size > 1024, (
+            "Arquivo muito pequeno — possível resposta vazia"
+        )
