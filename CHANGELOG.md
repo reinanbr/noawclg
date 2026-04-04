@@ -7,7 +7,7 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 ## [2.1.12]
-- Added numpy as lib required
+- Added NumPy as required library.
 
 ## [2.1.11]
 
