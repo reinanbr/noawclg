@@ -870,7 +870,6 @@ class TestNetCDF:
         nc = tmp_path / "ld.nc"
         mgr.save_netcdf(self._ds(), str(nc))
         loaded_raw = xr.open_dataset(nc, chunks=None)
-        # FIX: patch target must use the full module path noawclg.gfs_dataset
         with patch("noawclg.gfs_dataset.xr.open_dataset", return_value=loaded_raw):
             loaded = GFSDatasetManager.load_netcdf(nc)
         assert isinstance(loaded, xr.Dataset)
@@ -883,9 +882,8 @@ class TestNetCDF:
 
 
 class TestZarr:
-    """Zarr tests bypass .chunk() by patching noawclg.gfs_dataset.xr.Dataset.chunk
-    at the module level to return the dataset unchanged, avoiding the Dask
-    dependency in the test environment."""
+    """Zarr tests bypass .chunk() and .to_zarr() by patching at the class level
+    (xr.Dataset), avoiding the zarr / Dask dependency in the test environment."""
 
     def _ds(self) -> xr.Dataset:
         return xr.Dataset(
@@ -1009,3 +1007,63 @@ class TestEdgeCases:
 
     def test_no_var_in_both_surface_and_multilevel(self):
         assert not (set(SURFACE_VARS) & set(MULTILEVEL_VARS))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 13 · Integration tests  (requerem rede — marcados com @pytest.mark.integration)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.integration
+class TestIntegration:
+    """Testes que fazem chamadas reais de rede ao NOMADS/NOAA.
+
+    Executados apenas quando o marcador ``integration`` é selecionado::
+
+        pytest tests/ -v -m integration
+    """
+
+    def test_nomads_reachable(self):
+        """O endpoint raiz do NOMADS deve responder com HTTP < 500."""
+        import requests
+
+        r = requests.head(
+            "https://nomads.ncep.noaa.gov",
+            timeout=15,
+            headers={"User-Agent": "noawclg-ci-healthcheck/1.0"},
+        )
+        assert r.status_code < 500, (
+            f"NOMADS returned unexpected status {r.status_code}"
+        )
+
+    def test_filter_endpoint_reachable(self):
+        """O endpoint grib-filter deve aceitar requisições HEAD sem erro 5xx."""
+        import requests
+
+        url = (
+            "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25_1hr.pl"
+        )
+        r = requests.head(url, timeout=15,
+                          headers={"User-Agent": "noawclg-ci-healthcheck/1.0"})
+        # 400/404 são aceitáveis (sem parâmetros); 5xx indica falha do servidor
+        assert r.status_code < 500, (
+            f"grib-filter endpoint returned {r.status_code}"
+        )
+
+    def test_download_single_hour(self, tmp_path):
+        """Baixa hora 0 da variável t2m e verifica que o arquivo tem > 1 KB."""
+        from datetime import datetime, timezone
+
+        # Usa o run de hoje às 00Z — disponível com ~6 h de atraso
+        today = datetime.now(timezone.utc).strftime("%Y%m%d")
+        mgr = GFSDatasetManager(
+            date=today,
+            cycle="00",
+            output_dir=str(tmp_path),
+            region={"toplat": 5, "bottomlat": -35,
+                    "leftlon": -75, "rightlon": -34},
+            pause=2.0,
+        )
+        files = mgr.download_hours(["t2m"], hours=[0])
+        assert 0 in files, "Hora 0 não foi baixada — NOMADS pode estar indisponível"
+        assert files[0].stat().st_size > 1024, "Arquivo muito pequeno — possível resposta vazia"

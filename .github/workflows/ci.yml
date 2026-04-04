@@ -148,7 +148,8 @@ jobs:
           pip install pytest
 
       - name: Run integration tests
-        run: pytest tests/ -v -m integration --tb=short
+        run: pytest tests/ -v -m integration --tb=short || ([ $? -eq 5 ] && echo "No integration tests found — skipping." && exit 0)
+        shell: bash
 
   # ────────────────────────────────────────────────────────────────────────────
   build:
