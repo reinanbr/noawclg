@@ -92,6 +92,7 @@ jobs:
           pip install pytest pytest-cov
 
       - name: Run tests (offline only — skip integration)
+        shell: bash
         run: |
           pytest tests/ -v \
             -m "not integration" \
