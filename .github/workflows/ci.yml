@@ -74,11 +74,16 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install eccodes
 
+      # On Windows, install eccodes via conda.
+      # refreshenv reloads PATH so that conda is available immediately
+      # without requiring a new shell session.
       - name: Install eccodes (Windows)
         if: runner.os == 'Windows'
+        shell: cmd
         run: |
-          choco install miniconda3 -y
-          conda install -c conda-forge eccodes -y
+          choco install miniconda3 --yes --no-progress
+          call C:\tools\miniconda3\Scripts\activate.bat
+          conda install -c conda-forge eccodes --yes
 
       - name: Install Python dependencies
         run: |
