@@ -28,6 +28,7 @@ pytz = "==2025.2"
 six = "==1.17.0"
 tzdata = "==2025.2"
 xarray = "==2025.7.1"
+jupyterlab = "*"
 
 [dev-packages]
 

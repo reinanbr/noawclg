@@ -1,4 +1,4 @@
-import trash.main as main
+import noawclg.main as main
 import pandas as pda
 from datetime import datetime
 

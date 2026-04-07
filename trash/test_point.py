@@ -1,5 +1,5 @@
-import trash.main as main
-from trash.main import get_noaa_data as gnd
+import noawclg.main as main
+from noawclg.main import get_noaa_data as gnd
 from trash.plot import plot_data_from_place as pdp
 import pandas as pd
 import matplotlib.pyplot as plt

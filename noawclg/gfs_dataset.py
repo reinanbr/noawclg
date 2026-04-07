@@ -296,14 +296,18 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "grib_lev": "lev_entire_atmosphere_(considered_as_a_single_layer)",
         "converter": None,
     },
+    # FIX: cwat uses atmosphereSingleLayer in GFS GRIB2, not "atmosphere".
+    # The bare "atmosphere" typeOfLevel is reserved for tcc/refc/tozne-style
+    # full-column diagnostics; vertically-integrated fields like cwat and pwat
+    # are encoded as "atmosphereSingleLayer" with the verbose level string.
     "cwat": {
         "short": "cwat",
         "long_name": "Cloud water",
         "units": "kg m**-2",
-        "tlev": "atmosphere",
+        "tlev": "atmosphereSingleLayer",
         "levels": None,
         "grib_var": "var_CWAT",
-        "grib_lev": "lev_entire_atmosphere",
+        "grib_lev": "lev_entire_atmosphere_(considered_as_a_single_layer)",
         "converter": None,
     },
     # ── cloud cover ───────────────────────────────────────────────────────────
@@ -867,6 +871,10 @@ class GFSDatasetManager:
         for hour in iterator:
             t_iter = time.time()
             path = self._cache_path(var_keys, hour)
+            if path.exists() and not force:
+                LOG.info("[cache] f%03d  %s rea", hour, path.name)
+                results[hour] = path
+                continue
             url = self._filter_url(var_keys, hour)
             var_label = var_keys[0] if len(var_keys) == 1 else "multi"
             LOG.info("[%s] → f%03d  %s", var_label, hour, url[:120])
@@ -885,6 +893,7 @@ class GFSDatasetManager:
                     continue
 
                 bytes_written = 0
+
                 with path.open("wb") as fh:
                     for chunk in resp.iter_content(chunk_size=1024 * 1024):
                         if chunk:

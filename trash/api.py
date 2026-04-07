@@ -1,2 +1,2 @@
-from trash.main import get_noaa_data as gnd
+from noawclg.main import get_noaa_data as gnd
 

@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
-from trash.main import get_noaa_data as gnd
+from noawclg.main import get_noaa_data as gnd
 
 
 def fmt(data): return data
