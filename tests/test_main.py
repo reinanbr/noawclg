@@ -43,9 +43,7 @@ class TestHelpers:
         assert _normalize_lon(-38.5, lon_min=0.0) == pytest.approx(321.5)
 
     def test_find_dim_detects_existing(self):
-        found = _find_dim(
-            ["step", "latitude", "longitude"], ("lat", "latitude"), "lat"
-        )
+        found = _find_dim(["step", "latitude", "longitude"], ("lat", "latitude"), "lat")
         assert found == "latitude"
 
     def test_find_dim_raises_with_helpful_message(self):

@@ -42,7 +42,7 @@ from geopy.geocoders import Nominatim
 
 from noawclg.gfs_dataset import GFSDatasetManager, VARIABLES
 
-__version__ = "0.0.3"
+__version__ = "2.2"
 __author__ = "Reinan Br"
 
 log = logging.getLogger(__name__)
@@ -114,8 +114,7 @@ class BoundingBox:
 
     def contains(self, lat: float, lon: float) -> bool:
         return (
-            self.lat_min <= lat <= self.lat_max
-            and self.lon_min <= lon <= self.lon_max
+            self.lat_min <= lat <= self.lat_max and self.lon_min <= lon <= self.lon_max
         )
 
     def __str__(self) -> str:
@@ -150,9 +149,7 @@ class _DatasetView:
     def __getitem__(self, key: str) -> xr.Variable:
         if key not in self._ds.variables:
             available = list(self._ds.variables)
-            raise KeyError(
-                f"Variable '{key}' not found. Available: {available}"
-            )
+            raise KeyError(f"Variable '{key}' not found. Available: {available}")
         return self._ds.variables[key]
 
     def __repr__(self) -> str:
@@ -212,38 +209,38 @@ class get_noaa_data:
                 date = _parse_date(date)
             except ValueError:
                 raise ValueError(
-                    f"Invalid date format: '{date}'. "
-                    "Expected 'DD/MM/YYYY'."
+                    f"Invalid date format: '{date}'. Expected 'DD/MM/YYYY'."
                 ) from None
 
         resolved_date = date or datetime.now().strftime("%Y%m%d")
         self.date = resolved_date
         self.cycle = cycle
-        self.keys = keys 
+        self.keys = keys
         self.hours = hours if hours is not None else list(range(0, 385, 3))
 
         if not all(key in VARIABLES for key in self.keys):
             raise ValueError(
-                f"Invalid variable keys: {self.keys    }. "
-                f"Valid keys: {sorted(VARIABLES)}"
+                f"Invalid variable keys: {self.keys}. Valid keys: {sorted(VARIABLES)}"
             )
 
-        self.dataset: xr.Dataset = GFSDatasetManager(
-            self.date, self.cycle
-        )
+        self.dataset: xr.Dataset = GFSDatasetManager(self.date, self.cycle)
         if len(self.keys) > 1:
-            self._ds:xr.Dataset = self.dataset.build_multi_dataset(self.keys, self.hours)
+            self._ds: xr.Dataset = self.dataset.build_multi_dataset(
+                self.keys, self.hours
+            )
         else:
-            self._ds:xr.Dataset = self.dataset.build_dataset(self.keys[0], self.hours)
+            self._ds: xr.Dataset = self.dataset.build_dataset(self.keys[0], self.hours)
         # Auto-detect dimension names; user overrides take priority.
         coords = list(self._ds.coords)
-        self._LAT_DIM  = lat_dim  or _find_dim(coords, _LAT_CANDIDATES,  "lat")
-        self._LON_DIM  = lon_dim  or _find_dim(coords, _LON_CANDIDATES,  "lon")
+        self._LAT_DIM = lat_dim or _find_dim(coords, _LAT_CANDIDATES, "lat")
+        self._LON_DIM = lon_dim or _find_dim(coords, _LON_CANDIDATES, "lon")
         self._TIME_DIM = time_dim or _find_dim(coords, _TIME_CANDIDATES, "time")
 
         log.info(
             "Dimensions resolved → lat='%s', lon='%s', time='%s'",
-            self._LAT_DIM, self._LON_DIM, self._TIME_DIM,
+            self._LAT_DIM,
+            self._LON_DIM,
+            self._TIME_DIM,
         )
 
     # ------------------------------------------------------------------
@@ -287,9 +284,7 @@ class get_noaa_data:
     def __getitem__(self, key: str) -> xr.Variable:
         if key not in self._ds.variables:
             available = list(self._ds.variables)
-            raise KeyError(
-                f"Variable '{key}' not found. Available: {available}"
-            )
+            raise KeyError(f"Variable '{key}' not found. Available: {available}")
         return self._ds.variables[key]
 
     # ------------------------------------------------------------------
