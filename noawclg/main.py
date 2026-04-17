@@ -37,7 +37,6 @@ from datetime import datetime
 from functools import cached_property
 from typing import Optional, Union
 
-import numpy as np
 import xarray as xr
 from geopy.geocoders import Nominatim
 
@@ -297,7 +296,7 @@ class get_noaa_data:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_variable_names(self) -> dict[str, str]:
+    def get_keys(self) -> dict[str, str]:
         """Return ``{variable: long_name}`` for every variable in the dataset."""
         return {
             k: self._ds.variables[k].attrs.get("long_name", "")

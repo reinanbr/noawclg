@@ -6,6 +6,25 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [2.2] — 2026-04-17
+
+### Added
+- New test suite for `noawclg.main` in `tests/test_main.py`, covering:
+  - helper functions (`_parse_date`, `_normalize_lon`, `_find_dim`),
+  - `_DatasetView` and `BoundingBox`,
+  - class `get_noaa_data` (single/multi variable init, point/place queries,
+    time series and validation errors).
+- Consolidated project report in `WORKLOG_2.2.md` with the previous and current
+  delivery summaries.
+
+### Changed
+- README API docs now include complete reference for `get_noaa_data`.
+- Local CI execution validated through Pipenv (`ruff`, `mypy`, offline tests,
+  integration tests, build and `twine check`).
+
+### Fixed
+- Removed unused import in `noawclg/main.py` to satisfy lint checks.
+
 ## [2.1.13]
 - Config PyPi Publish.
 
@@ -125,7 +144,8 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.2...HEAD
+[2.2]:        https://github.com/reinanbr/noawclg/compare/v2.1.13...v2.2
 [2.1.0]:      https://github.com/reinanbr/noawclg/compare/v2.0.0...v2.1.0
 [2.0.0]:      https://github.com/reinanbr/noawclg/compare/v1.1.0...v2.0.0
 [1.1.0]:      https://github.com/reinanbr/noawclg/compare/v1.0.0...v1.1.0

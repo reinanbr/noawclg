@@ -22,6 +22,7 @@
 3. [How It Works](#how-it-works)
 4. [API Reference](#api-reference)
    - [GFSDatasetManager](#gfsdatasetmanager)
+    - [get\_noaa\_data](#get_noaa_data)
    - [build\_dataset](#build_dataset)
    - [build\_multi\_dataset](#build_multi_dataset)
    - [download\_hours](#download_hours)
@@ -159,6 +160,106 @@ mgr = GFSDatasetManager(
     pause=2.0,
 )
 ```
+
+---
+
+### `get_noaa_data`
+
+```python
+get_noaa_data(
+    date: str | None = None,
+    cycle: str = "00",
+    keys: list[str] = ["t2m"],
+    hours: list[int] | None = None,
+    *,
+    lat_dim: str | None = None,
+    lon_dim: str | None = None,
+    time_dim: str | None = None,
+)
+```
+
+High-level convenience wrapper for geocoded and point-based queries over GFS data.
+
+This class loads one or more variables and lets you query the nearest grid point by:
+- Direct coordinates (`get_data_from_point`)
+- Place name via geocoding (`get_data_from_place`)
+- Full time-series extraction (`get_time_series`)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `date` | `str \| None` | Date in `DD/MM/YYYY` format. If omitted, current date is used. |
+| `cycle` | `str` | Model cycle: `"00"`, `"06"`, `"12"`, `"18"`. Default `"00"`. |
+| `keys` | `list[str]` | Variable keys from [Variable Catalogue](#variable-catalogue). Default `['t2m']`. |
+| `hours` | `list[int] \| None` | Forecast hours to load. Default is `0..384` every 3 h. |
+| `lat_dim` | `str \| None` | Optional latitude coordinate name override. |
+| `lon_dim` | `str \| None` | Optional longitude coordinate name override. |
+| `time_dim` | `str \| None` | Optional time coordinate name override. |
+
+> Note: `get_noaa_data` is defined in `noawclg.main`.
+
+```python
+from noawclg.main import get_noaa_data
+
+noaa = get_noaa_data(
+    date="03/04/2026",
+    cycle="06",
+    keys=["t2m", "prate"],
+    hours=list(range(0, 49, 6)),
+)
+
+# by coordinates (lat, lon)
+point_data = noaa.get_data_from_point((-3.73, -38.52))
+print(point_data["t2m"])
+
+# by place name
+city_data = noaa.get_data_from_place("Fortaleza, Brazil")
+print(city_data.to_dataframe().head())
+```
+
+#### `get_data_from_point`
+
+```python
+noaa.get_data_from_point(
+    point: tuple[float, float],
+    *,
+    time: str | slice | list | None = None,
+    tolerance: float | None = None,
+) -> _DatasetView
+```
+
+Returns data from the nearest grid point to `(lat, lon)`. Longitude is automatically normalized to the dataset convention.
+
+#### `get_data_from_place`
+
+```python
+noaa.get_data_from_place(
+    place: str,
+    *,
+    time: str | slice | list | None = None,
+    tolerance: float | None = None,
+) -> _DatasetView
+```
+
+Geocodes a place name and forwards to `get_data_from_point`.
+
+#### `get_time_series`
+
+```python
+noaa.get_time_series(
+    point: tuple[float, float],
+    variable: str | None = None,
+) -> xr.Dataset | xr.DataArray
+```
+
+Returns full time-series at the nearest grid point. If `variable` is provided, returns only that variable.
+
+#### `get_keys`
+
+```python
+noaa.get_keys() -> dict[str, str]
+```
+
+Returns `{variable: long_name}` for every variable in the loaded dataset.
 
 ---
 
