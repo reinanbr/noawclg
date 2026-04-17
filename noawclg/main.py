@@ -38,7 +38,11 @@ from functools import cached_property
 from typing import Optional, Union
 
 import xarray as xr
-from geopy.geocoders import Nominatim
+
+try:
+    from geopy.geocoders import Nominatim
+except ModuleNotFoundError:  # pragma: no cover - depends on environment
+    Nominatim = None  # type: ignore[assignment]
 
 from noawclg.gfs_dataset import GFSDatasetManager, VARIABLES
 
@@ -47,7 +51,17 @@ __author__ = "Reinan Br"
 
 log = logging.getLogger(__name__)
 
-_GEOLOCATOR = Nominatim(user_agent="noawclg")
+
+class _MissingGeolocator:
+    def geocode(self, place: str):
+        raise ModuleNotFoundError(
+            "geopy is required for geocoding places. Install it with: pip install geopy"
+        )
+
+
+_GEOLOCATOR = (
+    Nominatim(user_agent="noawclg") if Nominatim is not None else _MissingGeolocator()
+)
 
 # Type alias
 Coordinate = tuple[float, float]  # (lat, lon)
