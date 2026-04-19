@@ -6,6 +6,17 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [2.2.4] — 2026-04-19
+
+### Added
+- README API reference now documents `load` with parameters, return type, and usage example.
+- New tests for `load` in `tests/test_main.py`, including:
+  - return value validation as `xr.Dataset`,
+  - argument forwarding validation to `get_noaa_data`.
+
+### Changed
+- Version metadata updated to `2.2.4`.
+
 ## [2.2.3] — 2026-04-17
 
 ### Fixed
@@ -150,7 +161,9 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.2...HEAD
+[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.2.4...HEAD
+[2.2.4]:      https://github.com/reinanbr/noawclg/compare/v2.2.3...v2.2.4
+[2.2.3]:      https://github.com/reinanbr/noawclg/compare/v2.2...v2.2.3
 [2.2]:        https://github.com/reinanbr/noawclg/compare/v2.1.13...v2.2
 [2.1.0]:      https://github.com/reinanbr/noawclg/compare/v2.0.0...v2.1.0
 [2.0.0]:      https://github.com/reinanbr/noawclg/compare/v1.1.0...v2.0.0

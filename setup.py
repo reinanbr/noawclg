@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="noawclg",
-    version="2.2.3",
+    version="2.2.4",
     url="https://github.com/reinanbr/noawclg",
     license="GPLv3",
     author="Reinan Br",

@@ -15,6 +15,7 @@ from noawclg.main import (
     _parse_date,
     get_noaa_data,
 )
+from noawclg.load import load
 
 
 def _sample_dataset(var_name: str = "t2m") -> xr.Dataset:
@@ -160,3 +161,38 @@ class TestGetNoaaData:
 
         with pytest.raises(KeyError, match="Variable 'prate' not found"):
             noaa.get_time_series((-3.1, -38.5), variable="prate")
+
+
+class TestLoadFunction:
+    def test_load_returns_underlying_dataset(self):
+        ds = _sample_dataset()
+
+        with patch("noawclg.load.get_noaa_data", return_value=SimpleNamespace(_ds=ds)):
+            out = load(date="03/04/2026", keys=["t2m"], hours=[0, 3])
+
+        assert isinstance(out, xr.Dataset)
+        assert "t2m" in out.data_vars
+
+    def test_load_forwards_all_parameters(self):
+        ds = _sample_dataset()
+
+        with patch("noawclg.load.get_noaa_data", return_value=SimpleNamespace(_ds=ds)) as mock_get:
+            load(
+                date="03/04/2026",
+                cycle="12",
+                keys=["t2m", "prate"],
+                hours=[0, 6],
+                lat_dim="latitude",
+                lon_dim="longitude",
+                time_dim="time",
+            )
+
+        mock_get.assert_called_once_with(
+            date="03/04/2026",
+            cycle="12",
+            keys=["t2m", "prate"],
+            hours=[0, 6],
+            lat_dim="latitude",
+            lon_dim="longitude",
+            time_dim="time",
+        )

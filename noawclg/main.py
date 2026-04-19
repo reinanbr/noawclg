@@ -32,10 +32,11 @@ it's a base from the noaawc lib
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
-from typing import Optional, Union
+from typing import Hashable, Optional, Union
 
 import xarray as xr
 
@@ -46,7 +47,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on environment
 
 from noawclg.gfs_dataset import GFSDatasetManager, VARIABLES
 
-__version__ = "2.2"
+__version__ = "2.2.4"
 __author__ = "Reinan Br"
 
 log = logging.getLogger(__name__)
@@ -76,7 +77,9 @@ _LON_CANDIDATES = ("lon", "longitude", "x", "nav_lon", "rlon", "XLONG")
 _TIME_CANDIDATES = ("time", "Time", "t", "forecast_hour", "step")
 
 
-def _find_dim(coords: list[str], candidates: tuple[str, ...], label: str) -> str:
+def _find_dim(
+    coords: Sequence[Hashable], candidates: tuple[str, ...], label: str
+) -> str:
     """
     Return the first candidate name that exists in *coords*.
 
@@ -216,7 +219,11 @@ class get_noaa_data:
         *,
         lat_dim: Optional[str] = None,
         lon_dim: Optional[str] = None,
+        region: Optional[dict] = None,
         time_dim: Optional[str] = None,
+        output_dir: str = "./gfs_output",
+        request_timeout: int = 30,
+        pause: float = 1.5,
     ) -> None:
         if date is not None:
             try:
@@ -237,13 +244,19 @@ class get_noaa_data:
                 f"Invalid variable keys: {self.keys}. Valid keys: {sorted(VARIABLES)}"
             )
 
-        self.dataset: xr.Dataset = GFSDatasetManager(self.date, self.cycle)
+        self.dataset: GFSDatasetManager = GFSDatasetManager(
+            date=self.date,
+            cycle=self.cycle,
+            region=region,
+            output_dir=output_dir,
+            request_timeout=request_timeout,
+            pause=pause,
+        )
+        self._ds: xr.Dataset
         if len(self.keys) > 1:
-            self._ds: xr.Dataset = self.dataset.build_multi_dataset(
-                self.keys, self.hours
-            )
+            self._ds = self.dataset.build_multi_dataset(self.keys, self.hours)
         else:
-            self._ds: xr.Dataset = self.dataset.build_dataset(self.keys[0], self.hours)
+            self._ds = self.dataset.build_dataset(self.keys[0], self.hours)
         # Auto-detect dimension names; user overrides take priority.
         coords = list(self._ds.coords)
         self._LAT_DIM = lat_dim or _find_dim(coords, _LAT_CANDIDATES, "lat")
@@ -308,8 +321,8 @@ class get_noaa_data:
     def get_keys(self) -> dict[str, str]:
         """Return ``{variable: long_name}`` for every variable in the dataset."""
         return {
-            k: self._ds.variables[k].attrs.get("long_name", "")
-            for k in self._ds.variables
+            str(k): str(v.attrs.get("long_name", ""))
+            for k, v in self._ds.variables.items()
         }
 
     def get_data_from_point(

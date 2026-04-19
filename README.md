@@ -23,6 +23,7 @@
 4. [API Reference](#api-reference)
    - [GFSDatasetManager](#gfsdatasetmanager)
     - [get\_noaa\_data](#get_noaa_data)
+    - [load](#load)
    - [build\_dataset](#build_dataset)
    - [build\_multi\_dataset](#build_multi_dataset)
    - [download\_hours](#download_hours)
@@ -214,6 +215,52 @@ print(point_data["t2m"])
 # by place name
 city_data = noaa.get_data_from_place("Fortaleza, Brazil")
 print(city_data.to_dataframe().head())
+```
+
+---
+
+### `load`
+
+```python
+load(
+    date: str | None = None,
+    cycle: str = "00",
+    keys: list[str] = ["t2m"],
+    hours: list[int] | None = None,
+    *,
+    lat_dim: str | None = None,
+    lon_dim: str | None = None,
+    time_dim: str | None = None,
+) -> xr.Dataset
+```
+
+Functional convenience wrapper that returns the underlying `xarray.Dataset`
+directly.
+
+Internally, `load(...)` calls `get_noaa_data(...)` with the same arguments and
+returns `._ds`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `date` | `str \| None` | Date in `DD/MM/YYYY` format. If omitted, current date is used. |
+| `cycle` | `str` | Model cycle: `"00"`, `"06"`, `"12"`, `"18"`. Default `"00"`. |
+| `keys` | `list[str]` | Variable keys from [Variable Catalogue](#variable-catalogue). Default `['t2m']`. |
+| `hours` | `list[int] \| None` | Forecast hours to load. Default is `0..384` every 3 h. |
+| `lat_dim` | `str \| None` | Optional latitude coordinate name override. |
+| `lon_dim` | `str \| None` | Optional longitude coordinate name override. |
+| `time_dim` | `str \| None` | Optional time coordinate name override. |
+
+```python
+from noawclg import load
+
+ds = load(
+    date="03/04/2026",
+    cycle="06",
+    keys=["t2m", "prate"],
+    hours=list(range(0, 25, 6)),
+)
+
+print(ds.data_vars)
 ```
 
 #### `get_data_from_point`
