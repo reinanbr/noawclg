@@ -176,7 +176,9 @@ class TestLoadFunction:
     def test_load_forwards_all_parameters(self):
         ds = _sample_dataset()
 
-        with patch("noawclg.load.get_noaa_data", return_value=SimpleNamespace(_ds=ds)) as mock_get:
+        with patch(
+            "noawclg.load.get_noaa_data", return_value=SimpleNamespace(_ds=ds)
+        ) as mock_get:
             load(
                 date="03/04/2026",
                 cycle="12",
