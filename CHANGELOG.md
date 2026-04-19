@@ -6,6 +6,12 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [2.2.5] — 2026-04-19
+
+### Changed
+- Release metadata bumped to `2.2.5` to publish with a fresh tag.
+- `tests/test_main.py` formatting aligned with Ruff.
+
 ## [2.2.4] — 2026-04-19
 
 ### Added
@@ -161,7 +167,8 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.2.4...HEAD
+[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.2.5...HEAD
+[2.2.5]:      https://github.com/reinanbr/noawclg/compare/v2.2.4...v2.2.5
 [2.2.4]:      https://github.com/reinanbr/noawclg/compare/v2.2.3...v2.2.4
 [2.2.3]:      https://github.com/reinanbr/noawclg/compare/v2.2...v2.2.3
 [2.2]:        https://github.com/reinanbr/noawclg/compare/v2.1.13...v2.2
