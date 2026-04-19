@@ -6,6 +6,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [2.2.6] — 2026-04-19
+
+### Fixed
+- CI release pipeline follow-up after `v2.2.5` to ensure publish runs from the corrected commit.
+
 ## [2.2.5] — 2026-04-19
 
 ### Changed
@@ -167,7 +172,8 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.2.5...HEAD
+[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.2.6...HEAD
+[2.2.6]:      https://github.com/reinanbr/noawclg/compare/v2.2.5...v2.2.6
 [2.2.5]:      https://github.com/reinanbr/noawclg/compare/v2.2.4...v2.2.5
 [2.2.4]:      https://github.com/reinanbr/noawclg/compare/v2.2.3...v2.2.4
 [2.2.3]:      https://github.com/reinanbr/noawclg/compare/v2.2...v2.2.3

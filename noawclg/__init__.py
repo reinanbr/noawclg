@@ -8,5 +8,5 @@ from noawclg.load import load
 
 __all__ = ["VARIABLES", "GFSDatasetManager", "get_noaa_data", "load"]
 
-__version__ = "2.2.5"
+__version__ = "2.2.6"
 __author__ = "Reinan Br"

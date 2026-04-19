@@ -47,7 +47,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on environment
 
 from noawclg.gfs_dataset import GFSDatasetManager, VARIABLES
 
-__version__ = "2.2.5"
+__version__ = "2.2.6"
 __author__ = "Reinan Br"
 
 log = logging.getLogger(__name__)
