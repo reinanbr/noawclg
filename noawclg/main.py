@@ -249,7 +249,6 @@ class get_noaa_data:
             cycle=self.cycle,
             region=region,
             output_dir=output_dir,
-            request_timeout=request_timeout,
             pause=pause,
         )
         self._ds: xr.Dataset
