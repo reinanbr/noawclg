@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -166,8 +167,11 @@ class TestGetNoaaData:
 class TestLoadFunction:
     def test_load_returns_underlying_dataset(self):
         ds = _sample_dataset()
+        load_module = importlib.import_module("noawclg.load")
 
-        with patch("noawclg.load.get_noaa_data", return_value=SimpleNamespace(_ds=ds)):
+        with patch.object(
+            load_module, "get_noaa_data", return_value=SimpleNamespace(_ds=ds)
+        ):
             out = load(date="03/04/2026", keys=["t2m"], hours=[0, 3])
 
         assert isinstance(out, xr.Dataset)
@@ -175,9 +179,10 @@ class TestLoadFunction:
 
     def test_load_forwards_all_parameters(self):
         ds = _sample_dataset()
+        load_module = importlib.import_module("noawclg.load")
 
-        with patch(
-            "noawclg.load.get_noaa_data", return_value=SimpleNamespace(_ds=ds)
+        with patch.object(
+            load_module, "get_noaa_data", return_value=SimpleNamespace(_ds=ds)
         ) as mock_get:
             load(
                 date="03/04/2026",
