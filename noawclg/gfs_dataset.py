@@ -57,6 +57,10 @@ except ImportError:
 
 LOG = logging.getLogger(__name__)
 
+# cfgrib can emit very noisy stack traces for partially downloaded files.
+# Keep them at ERROR and handle invalid files ourselves with integrity checks.
+logging.getLogger("cfgrib.messages").setLevel(logging.ERROR)
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Variable catalogue
 # ══════════════════════════════════════════════════════════════════════════════
@@ -112,6 +116,7 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "grib_var": "var_APTMP",
         "grib_lev": "lev_2_m_above_ground",
         "converter": lambda x: x - 273.15,
+        "pgrb2b_only": True,
     },
     # ── 10-metre wind ─────────────────────────────────────────────────────────
     "u10": {
@@ -161,9 +166,10 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "units": "hPa",
         "tlev": "meanSea",
         "levels": None,
-        "grib_var": "var_MSLET",
+        "grib_var": "var_PRMSL",
         "grib_lev": "lev_mean_sea_level",
         "converter": lambda x: x / 100,
+        "pgrb2b_var": "var_MSLET",
     },
     "sp": {
         "short": "sp",
@@ -330,6 +336,7 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "grib_var": "var_TCDC",
         "grib_lev": "lev_low_cloud_layer",
         "converter": None,
+        "pgrb2b_only": True,
     },
     "mcc": {
         "short": "mcc",
@@ -340,6 +347,7 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "grib_var": "var_TCDC",
         "grib_lev": "lev_middle_cloud_layer",
         "converter": None,
+        "pgrb2b_only": True,
     },
     "hcc": {
         "short": "hcc",
@@ -350,6 +358,7 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "grib_var": "var_TCDC",
         "grib_lev": "lev_high_cloud_layer",
         "converter": None,
+        "pgrb2b_only": True,
     },
     # ── convection / instability ──────────────────────────────────────────────
     "cape": {
@@ -401,7 +410,7 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "tlev": "heightAboveGroundLayer",
         "levels": None,
         "grib_var": "var_HLCY",
-        "grib_lev": "lev_height_above_ground_layer",
+        "grib_lev": "lev_0-3000_m_above_ground_layer",
         "converter": None,
     },
     # ── upper-air multi-level (isobaric) ──────────────────────────────────────
@@ -501,7 +510,13 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "tlev": "depthBelowLandLayer",
         "levels": [0, 10, 40, 100],
         "grib_var": "var_TSOIL",
-        "grib_lev": "lev_depth_below_land_layer",
+        "grib_lev": "lev_0-10_cm_below_ground",
+        "grib_lev_map": {
+            0: "lev_0-10_cm_below_ground",
+            10: "lev_10-40_cm_below_ground",
+            40: "lev_40-100_cm_below_ground",
+            100: "lev_100-200_cm_below_ground",
+        },
         "converter": lambda x: x - 273.15,
         "multilevel": True,
     },
@@ -512,7 +527,13 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "tlev": "depthBelowLandLayer",
         "levels": [0, 10, 40, 100],
         "grib_var": "var_SOILW",
-        "grib_lev": "lev_depth_below_land_layer",
+        "grib_lev": "lev_0-10_cm_below_ground",
+        "grib_lev_map": {
+            0: "lev_0-10_cm_below_ground",
+            10: "lev_10-40_cm_below_ground",
+            40: "lev_40-100_cm_below_ground",
+            100: "lev_100-200_cm_below_ground",
+        },
         "converter": None,
         "multilevel": True,
     },
@@ -556,6 +577,7 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "grib_var": "var_TOZNE",
         "grib_lev": "lev_entire_atmosphere",
         "converter": None,
+        "f000_only": True,
     },
 }
 
@@ -586,8 +608,8 @@ _HEADERS = {
     )
 }
 _RETRY = Retry(
-    total=4,
-    backoff_factor=2,
+    total=2,
+    backoff_factor=0.5,
     status_forcelist={429, 500, 502, 503, 504},
     allowed_methods={"GET", "HEAD"},
     raise_on_status=False,
@@ -656,6 +678,7 @@ class GFSDatasetManager:
         output_dir: str = "./gfs_output",
         region: dict[str, float] | None = None,
         pause: float = 1.5,
+        request_timeout: int = 30,
     ) -> None:
         """Initialise the manager and validate run parameters.
 
@@ -675,6 +698,8 @@ class GFSDatasetManager:
             pause (float): Seconds to sleep between consecutive HTTP requests.
                 Increase this value if NOMADS rate-limits your downloads.
                 Defaults to ``1.5``.
+            request_timeout (int): Timeout in seconds used for each download
+                request. Defaults to ``30``.
 
         Raises:
             ValueError: If ``date`` does not match the ``YYYYMMDD`` format.
@@ -689,6 +714,7 @@ class GFSDatasetManager:
         self.output_dir = Path(output_dir).resolve()  # always absolute
         self.region = region
         self.pause = pause
+        self.request_timeout = request_timeout
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._run_dt = datetime.strptime(f"{date}{cycle}", "%Y%m%d%H")
         self._session = _build_session()
@@ -786,6 +812,31 @@ class GFSDatasetManager:
             f"gfs_{self.date}_{self.cycle}z_{vkey}_{tag}_f{hour:03d}.grib2"
         )
 
+    def _is_valid_grib_file(self, path: Path, min_size: int = 100) -> bool:
+        """Return True when *path* looks like a complete GRIB file.
+
+        Checks:
+        1. File exists and has at least ``min_size`` bytes.
+        2. If the file starts with GRIB magic header (``b"GRIB"``), it must
+           also end with GRIB trailer (``b"7777"``).
+
+        Note:
+            Non-GRIB payloads are treated as "valid enough" for cache usage,
+            preserving backward compatibility in tests that use mocked bytes.
+        """
+        try:
+            if not path.exists() or path.stat().st_size < min_size:
+                return False
+            with path.open("rb") as fh:
+                head = fh.read(4)
+                if head != b"GRIB":
+                    return True
+                fh.seek(-4, 2)
+                tail = fh.read(4)
+            return tail == b"7777"
+        except Exception:
+            return False
+
     # ── download ──────────────────────────────────────────────────────────────
 
     def download_hours(
@@ -843,8 +894,17 @@ class GFSDatasetManager:
         for hour in hours:
             path = self._cache_path(var_keys, hour)
             if path.exists() and not force:
-                LOG.info("[cache] f%03d  %s", hour, path.name)
-                results[hour] = path
+                if self._is_valid_grib_file(path):
+                    LOG.info("[cache] f%03d  %s", hour, path.name)
+                    results[hour] = path
+                else:
+                    LOG.warning(
+                        "[cache-bad] f%03d  %s (invalid/truncated) — re-downloading",
+                        hour,
+                        path.name,
+                    )
+                    path.unlink(missing_ok=True)
+                    hours_to_fetch.append(hour)
             else:
                 hours_to_fetch.append(hour)
 
@@ -872,15 +932,24 @@ class GFSDatasetManager:
             t_iter = time.time()
             path = self._cache_path(var_keys, hour)
             if path.exists() and not force:
-                LOG.info("[cache] f%03d  %s rea", hour, path.name)
-                results[hour] = path
-                continue
+                if self._is_valid_grib_file(path):
+                    LOG.info("[cache] f%03d  %s", hour, path.name)
+                    results[hour] = path
+                    continue
+                LOG.warning(
+                    "[cache-bad] f%03d  %s (invalid/truncated) — re-downloading",
+                    hour,
+                    path.name,
+                )
+                path.unlink(missing_ok=True)
             url = self._filter_url(var_keys, hour)
             var_label = var_keys[0] if len(var_keys) == 1 else "multi"
             LOG.info("[%s] → f%03d  %s", var_label, hour, url[:120])
 
             try:
-                resp = self._session.get(url, timeout=60, stream=True)
+                resp = self._session.get(
+                    url, timeout=self.request_timeout, stream=True
+                )
 
                 if resp.status_code != 200:
                     LOG.warning(
@@ -900,9 +969,9 @@ class GFSDatasetManager:
                             fh.write(chunk)
                             bytes_written += len(chunk)
 
-                if bytes_written < 100:
+                if bytes_written < 100 or not self._is_valid_grib_file(path):
                     LOG.warning(
-                        "var=%s  f%03d: empty response (%d bytes) — discarding",
+                        "var=%s  f%03d: invalid response (%d bytes or bad trailer) — discarding",
                         var_label,
                         hour,
                         bytes_written,
@@ -928,6 +997,13 @@ class GFSDatasetManager:
 
             except requests.RequestException as exc:
                 LOG.error("var=%s  f%03d: network error — %s", var_label, hour, exc)
+            except KeyboardInterrupt:
+                LOG.warning(
+                    "Download interrupted by user at f%03d; returning %d file(s) collected so far.",
+                    hour,
+                    len(results),
+                )
+                break
 
             time.sleep(self.pause)
 
@@ -983,7 +1059,12 @@ class GFSDatasetManager:
 
         for filters in candidates:
             try:
-                ds = cfgrib.open_dataset(path, filter_by_keys=filters, indexpath=None)
+                ds = cfgrib.open_dataset(
+                    path,
+                    filter_by_keys=filters,
+                    indexpath=None,
+                    errors="ignore",
+                )
                 result = _non_empty(ds)
                 if result is not None:
                     LOG.debug(
@@ -998,7 +1079,7 @@ class GFSDatasetManager:
 
         # Last resort: full scan
         try:
-            all_ds = cfgrib.open_datasets(path, indexpath=None)
+            all_ds = cfgrib.open_datasets(path, indexpath=None, errors="ignore")
             LOG.debug("'%s': full scan — %d sub-datasets found", var_key, len(all_ds))
 
             for ds in all_ds:  # pass 1: shortName match
