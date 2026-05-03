@@ -947,9 +947,7 @@ class GFSDatasetManager:
             LOG.info("[%s] → f%03d  %s", var_label, hour, url[:120])
 
             try:
-                resp = self._session.get(
-                    url, timeout=self.request_timeout, stream=True
-                )
+                resp = self._session.get(url, timeout=self.request_timeout, stream=True)
 
                 if resp.status_code != 200:
                     LOG.warning(
