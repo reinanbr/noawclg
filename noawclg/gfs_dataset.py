@@ -635,6 +635,24 @@ def _build_session() -> requests.Session:
     return s
 
 
+from datetime import date, timedelta
+
+def auto_date(lag_days: int = 1) -> tuple[str, str]:
+    """Retorna (date, cycle) prontos para o GFSDatasetManager."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    run_date = now - timedelta(days=lag_days)
+    # ciclo disponível: GFS leva ~4h para publicar
+    available_hour = now.hour - 4
+    if   available_hour >= 18: cycle = "18"
+    elif available_hour >= 12: cycle = "12"
+    elif available_hour >= 6:  cycle = "06"
+    else:                      cycle = "00"
+    return run_date.strftime("%d/%m/%Y"), cycle
+
+DATE, CYCLE = auto_date(lag_days=1)   # ontem = garantido disponível
+print(f"Usando: {DATE} ciclo {CYCLE}")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Manager
 # ══════════════════════════════════════════════════════════════════════════════
@@ -708,7 +726,7 @@ class GFSDatasetManager:
         datetime.strptime(date, "%Y%m%d")
         if cycle not in {"00", "06", "12", "18"}:
             raise ValueError("cycle must be one of: 00, 06, 12, 18")
-
+    
         self.date = date
         self.cycle = cycle
         self.output_dir = Path(output_dir).resolve()  # always absolute
@@ -756,11 +774,26 @@ class GFSDatasetManager:
         parts: list[str] = []
         for vk in var_keys:
             cfg = VARIABLES[vk]
-            pair = f"&{cfg['grib_var']}=on&{cfg['grib_lev']}=on"
-            if pair not in seen:
-                seen.add(pair)
-                parts.append(pair)
+            var_token = f"&{cfg['grib_var']}=on"
+            if var_token not in seen:
+                seen.add(var_token)
+                parts.append(var_token)
+
+            # Variáveis multilevel isobáricas: expande cada nível explicitamente
+            if cfg["tlev"] == "isobaricInhPa" and cfg.get("levels"):
+                for lev in cfg["levels"]:
+                    lev_token = f"&lev_{lev}_mb=on"
+                    if lev_token not in seen:
+                        seen.add(lev_token)
+                        parts.append(lev_token)
+            else:
+                lev_token = f"&{cfg['grib_lev']}=on"
+                if lev_token not in seen:
+                    seen.add(lev_token)
+                    parts.append(lev_token)
+
         return "".join(parts)
+
 
     def _filter_url(self, var_keys: list[str], hour: int) -> str:
         """Construct the complete grib-filter URL for a given hour.
@@ -1426,10 +1459,16 @@ class GFSDatasetManager:
                 print(list(ds.data_vars))
                 # ['t2m', 'prmsl', 'prate', 'u10', 'v10']
         """
+# DEPOIS
         files = self.download_hours(var_keys, hours, force=force_download)
         if not files:
-            raise RuntimeError("No files available.")
-
+            raise RuntimeError(
+                f"No files could be downloaded for hours={hours}. "
+                "The NOMADS server may have returned HTTP 500 for all requested "
+                "forecast hours — the run may not be published yet. "
+                f"Try a smaller range or an earlier cycle. "
+                f"(date={self.date}, cycle={self.cycle})"
+        )
         datasets: list[xr.Dataset] = []
         for vk in var_keys:
             LOG.info("Extracting '%s' …", vk)

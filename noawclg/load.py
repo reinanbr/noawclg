@@ -11,6 +11,7 @@ def load(
     lat_dim: Optional[str] = None,
     lon_dim: Optional[str] = None,
     time_dim: Optional[str] = None,
+    region: Optional[dict[str, float]] = None,
 ):
     """
     Load NOAA GFS data for a specific date and cycle.
@@ -23,6 +24,7 @@ def load(
         lat_dim (str): Name of the latitude dimension in the dataset. If None, uses the default name.
         lon_dim (str): Name of the longitude dimension in the dataset. If None, uses the default name.
         time_dim (str): Name of the time dimension in the dataset. If None, uses the default name.
+        region (dict[str, float]): Bounding box coordinates for the region of interest.
     Returns:
         xarray.Dataset: The loaded dataset containing the requested variables and dimensions.
     """
@@ -34,4 +36,5 @@ def load(
         lat_dim=lat_dim,
         lon_dim=lon_dim,
         time_dim=time_dim,
+        region=region,
     )._ds
