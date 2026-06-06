@@ -66,110 +66,558 @@ pytest
 
 ## GFS weather forecasts
 
-### Quick download with `load`
-
-```python
-from noawclg import load, auto_date
-
-date, cycle = auto_date(lag_days=1)   # latest complete GFS run
-
-ds = load(
-    date=date,
-    cycle=cycle,
-    lat=-3.7,           # point of interest (Fortaleza, Brazil)
-    lon=-38.5,
-    region={
-        "toplat": 5, "bottomlat": -15,
-        "leftlon": -50, "rightlon": -30,
-    },
-    hours=list(range(0, 121, 3)),   # forecast hours 0–120 h every 3 h
-)
-print(ds)
-```
-
-The returned `xr.Dataset` contains:
-
-| Variable | Description | Units |
-|----------|-------------|-------|
-| `t2m` | 2-m temperature | K |
-| `d2m` | 2-m dew point | K |
-| `prmsl` | Mean sea-level pressure | Pa |
-| `u10` / `v10` | 10-m wind components | m/s |
-| `gust` | Surface wind gust | m/s |
-| `prate` | Precipitation rate | kg/m²/s |
-| `r2` | 2-m relative humidity | % |
-| `tcc` | Total cloud cover | 0–1 |
-| `cape` | CAPE | J/kg |
-
 ### `auto_date` — pick the latest available GFS cycle
 
 ```python
 from noawclg import auto_date
 
 date, cycle = auto_date(lag_days=1)
-# date  → "05/06/2026"  (DD/MM/YYYY)
+# date  → "05/06/2026"  (DD/MM/YYYY — always this format)
 # cycle → "12"          (00 / 06 / 12 / 18)
 ```
 
-`lag_days=1` returns yesterday (safe; today's runs may still be publishing).  
-`lag_days=0` returns today's most recently available cycle.
+`lag_days=1` targets yesterday's run (always published on NOMADS).  
+`lag_days=0` returns today's most recently published cycle (~4 h after initialization).
 
-### `GFSDatasetManager` — full control
+### `load` — quick download as `xr.Dataset`
 
-```python
-from noawclg import GFSDatasetManager
-
-mgr = GFSDatasetManager(
-    date="05/06/2026",
-    cycle="12",
-    variables=["t2m", "u10", "v10", "prmsl"],
-    region={"toplat": 10, "bottomlat": -20, "leftlon": -55, "rightlon": -25},
-    output_dir="gfs_cache/",
-)
-
-mgr.download_hours(list(range(0, 49, 3)))
-ds = mgr.build_multi_dataset(list(range(0, 49, 3)))
-
-# Save / load
-mgr.save_netcdf(ds, "forecast.nc")
-ds2 = mgr.load_netcdf("forecast.nc")
-mgr.save_zarr(ds, "forecast.zarr")
-ds3 = mgr.load_zarr("forecast.zarr")
-```
-
-### `get_noaa_data` — query by place name
+`load()` returns an `xr.Dataset` directly. Use `keys=` to select variables and
+`region=` to crop spatially. There are **no `lat=`/`lon=` parameters** — to
+query a single point, select it from the returned dataset with `.sel`.
 
 ```python
-from noawclg import get_noaa_data
+from noawclg import load, auto_date
 
-gfs = get_noaa_data(
-    date="05/06/2026",
-    cycle="12",
-    place="Recife PE",          # geocoded automatically
-    hours=list(range(0, 73, 3)),
-    variables=["t2m", "prmsl", "prate"],
+date, cycle = auto_date(lag_days=1)
+
+ds = load(
+    date=date,
+    cycle=cycle,
+    keys=["t2m", "u10", "v10", "prmsl", "prate", "r2", "cape"],
+    region={
+        "toplat": 5, "bottomlat": -15,
+        "leftlon": -50, "rightlon": -30,
+    },
+    hours=list(range(0, 121, 3)),   # 0–120 h every 3 h
 )
 
-# Access extracted time series
-ts = gfs.time_series("t2m")      # pd.Series indexed by forecast time
-pt = gfs.point_query("t2m", hour=24)  # scalar value at hour 24
+print(ds)
+# Select a single grid point (nearest-neighbour)
+point = ds.sel(latitude=-3.7, longitude=-38.5, method="nearest")
 ```
+
+Variables returned with correct units after internal conversion:
+
+| Key | Description | Units |
+|-----|-------------|-------|
+| `t2m` | 2 m temperature | °C |
+| `d2m` | 2 m dew point | °C |
+| `prmsl` | Mean sea-level pressure | hPa |
+| `u10` / `v10` | 10 m wind components | m/s |
+| `gust` | Surface wind gust | m/s |
+| `prate` | Precipitation rate | kg/m²/s |
+| `r2` | 2 m relative humidity | % |
+| `tcc` | Total cloud cover | % |
+| `cape` | CAPE | J/kg |
 
 ### Pre-defined hour sequences
 
 ```python
 from noawclg import HOURS_5DAYS_1H, HOURS_10DAYS_3H, HOURS_16DAYS_3H
 
-# Download 5-day hourly forecast
-ds = load(date=date, cycle=cycle, lat=0, lon=-40, hours=HOURS_5DAYS_1H)
+ds = load(date=date, cycle=cycle, keys=["t2m"], hours=HOURS_5DAYS_1H)
 ```
 
-| Constant | Hours | Step |
+| Constant | Range | Step |
 |----------|-------|------|
-| `HOURS_5DAYS_1H` | 0–120 | 1 h |
-| `HOURS_10DAYS_3H` | 0–240 | 3 h |
-| `HOURS_16DAYS_3H` | 0–384 | 3 h |
-| `HOURS_16DAYS` | 0–384 | 6 h |
+| `HOURS_5DAYS_1H` | 0–120 h | 1 h |
+| `HOURS_10DAYS_3H` | 0–240 h | 3 h |
+| `HOURS_16DAYS_3H` | 0–384 h | 3 h |
+| `HOURS_16DAYS` | 0–384 h | 6 h |
+
+### `GFSDatasetManager` — full control over download and storage
+
+`GFSDatasetManager` receives `date` in **`YYYYMMDD`** format.  Variables are
+passed to the download/build methods, not to the constructor.
+
+```python
+from noawclg import GFSDatasetManager
+
+mgr = GFSDatasetManager(
+    date="20260605",               # YYYYMMDD
+    cycle="12",
+    region={"toplat": 10, "bottomlat": -20, "leftlon": -55, "rightlon": -25},
+    output_dir="gfs_cache/",
+)
+
+hours = list(range(0, 49, 3))
+
+# One variable → build_dataset
+ds_t = mgr.build_dataset("t2m", hours)
+
+# Multiple variables at once → build_multi_dataset
+ds = mgr.build_multi_dataset(["t2m", "u10", "v10", "prmsl"], hours)
+
+# Persist and reload
+mgr.save_netcdf(ds, "forecast.nc")
+ds2 = mgr.load_netcdf("forecast.nc")
+
+mgr.save_zarr(ds, "forecast.zarr")
+ds3 = mgr.load_zarr("forecast.zarr")
+```
+
+### `get_noaa_data` — query by coordinates or place name
+
+`get_noaa_data` is a class. Instantiate it with `keys=`, then use spatial
+query methods. Date format is `DD/MM/YYYY` (same as `auto_date` output).
+
+```python
+from noawclg import get_noaa_data
+
+gfs = get_noaa_data(
+    date="05/06/2026",            # DD/MM/YYYY
+    cycle="12",
+    keys=["t2m", "prmsl", "prate", "u10", "v10"],
+    hours=list(range(0, 73, 3)),
+    region={"toplat": 5, "bottomlat": -15, "leftlon": -50, "rightlon": -30},
+)
+
+# Query by coordinates → returns a _DatasetView
+view = gfs.get_data_from_point(point=(-3.7, -38.5))
+df   = view.to_dataframe()        # pd.DataFrame
+
+# Query by place name (geocoded automatically via Nominatim)
+view2 = gfs.get_data_from_place("Recife PE")
+df2   = view2.to_dataframe()
+
+# Complete time series for one variable at a grid point
+t2m_series = gfs.get_time_series(point=(-3.7, -38.5), variable="t2m")
+# → xr.DataArray indexed by time
+
+# List all loaded variables
+print(gfs.get_keys())   # {"t2m": "2 metre temperature", ...}
+
+# Access the raw xr.Dataset
+print(gfs._ds)
+```
+
+---
+
+## Mathematical analysis examples
+
+All examples below use a dataset loaded with:
+
+```python
+from noawclg import load, auto_date
+import numpy as np
+import pandas as pd
+from scipy import stats, signal
+
+date, cycle = auto_date(lag_days=1)
+ds = load(
+    date=date, cycle=cycle,
+    keys=["t2m", "d2m", "u10", "v10", "prmsl", "prate",
+          "r2", "cape", "tcc", "gust"],
+    region={"toplat": 5, "bottomlat": -15, "leftlon": -50, "rightlon": -30},
+    hours=list(range(0, 121, 3)),
+)
+# Pick a single point for time-series examples
+pt = ds.sel(latitude=-3.7, longitude=-38.5, method="nearest")
+```
+
+### Temperature — heat index, anomaly, trend
+
+```python
+# --- heat index (Rothfusz equation, °C in → °C out)
+T = pt["t2m"].values          # °C
+RH = pt["r2"].values          # %
+
+HI = (
+    -8.78469475556
+    + 1.61139411 * T
+    + 2.33854883889 * RH
+    - 0.14611605 * T * RH
+    - 0.012308094 * T**2
+    - 0.0164248277778 * RH**2
+    + 0.002211732 * T**2 * RH
+    + 0.00072546 * T * RH**2
+    - 0.000003582 * T**2 * RH**2
+)
+
+# --- anomaly relative to 0-h (analysis) step
+t2m_anom = pt["t2m"].values - pt["t2m"].values[0]
+
+# --- linear trend across the forecast window
+hours_arr = np.array(list(range(0, 121, 3)), dtype=float)
+slope, intercept, r, p, se = stats.linregress(hours_arr, pt["t2m"].values)
+print(f"Warming rate: {slope:.3f} °C/h  (R²={r**2:.3f})")
+
+# --- rolling 24-h mean using pandas
+t_series = pd.Series(pt["t2m"].values, index=pd.to_timedelta(hours_arr, unit="h"))
+t_roll24 = t_series.rolling("24h").mean()
+```
+
+### Dew-point depression and relative humidity check
+
+```python
+# Dew-point depression (dry-bulb minus dew-point, °C)
+Td = pt["d2m"].values   # °C
+T  = pt["t2m"].values
+
+depression = T - Td     # 0 → fully saturated; > 10 → dry air
+
+# Magnus formula: recompute RH from T and Td to cross-check
+a, b = 17.625, 243.04   # Magnus constants
+RH_check = 100 * np.exp(a * Td / (b + Td)) / np.exp(a * T / (b + T))
+```
+
+### Wind — speed, direction, wind stress, gusts
+
+```python
+u = pt["u10"].values   # m/s (positive = westerly)
+v = pt["v10"].values   # m/s (positive = southerly)
+
+# Scalar wind speed and meteorological direction (from, 0°=N)
+wspd = np.hypot(u, v)
+wdir = (270 - np.degrees(np.arctan2(v, u))) % 360
+
+# Wind stress (bulk formula, air density ρ ≈ 1.225 kg/m³, Cd ≈ 1.3e-3)
+rho, Cd = 1.225, 1.3e-3
+tau_x = rho * Cd * wspd * u
+tau_y = rho * Cd * wspd * v
+
+# Normalised gust factor  (gust / sustained)
+gust = pt["gust"].values
+gust_factor = np.where(wspd > 0, gust / wspd, np.nan)
+
+# Beaufort scale
+beaufort = np.digitize(wspd, [0.3, 1.6, 3.4, 5.5, 8.0, 10.8,
+                               13.9, 17.2, 20.8, 24.5, 28.5, 32.7])
+
+# FFT on wind speed — dominant frequency in the forecast signal
+fft_coeffs = np.fft.rfft(wspd - wspd.mean())
+freqs = np.fft.rfftfreq(len(wspd), d=3.0)   # sampling interval = 3 h
+dominant_period_h = 1.0 / freqs[np.argmax(np.abs(fft_coeffs[1:])) + 1]
+```
+
+### Pressure — gradient, smoothing, tendency
+
+```python
+prmsl = ds["prmsl"].values   # shape (time, lat, lon), hPa
+
+# Spatial gradient (hPa / grid-cell) at each time step
+dp_dy, dp_dx = np.gradient(prmsl, axis=(1, 2))
+
+# Gaussian spatial smoothing (σ = 2 grid points)
+from scipy.ndimage import gaussian_filter
+prmsl_smooth = gaussian_filter(prmsl, sigma=(0, 2, 2))
+
+# Pressure tendency (hPa/3 h) — central differences in time
+tendency = np.gradient(prmsl, 3.0, axis=0)   # axis 0 = time
+
+# At the chosen point: anomaly from first step
+p_pt = pt["prmsl"].values
+p_anom = p_pt - p_pt[0]
+```
+
+### Precipitation — accumulation, exceedance probability
+
+```python
+# prate is in kg/m²/s; multiply by 3600 to get mm/h,
+# then multiply by timestep in hours to accumulate
+dt_hours = 3
+prate = pt["prate"].values          # kg/m²/s = mm/s
+
+precip_rate_mm_h = prate * 3600                        # mm/h
+precip_accum_mm  = np.cumsum(precip_rate_mm_h * dt_hours)  # mm total
+
+# 24-h accumulated totals (rolling sum over 8 × 3-h steps)
+precip_series = pd.Series(precip_rate_mm_h * dt_hours)
+precip_24h = precip_series.rolling(8).sum()
+
+# Probability of exceeding 5 mm/h — empirical from spatial domain
+prate_all = ds["prate"].values   # (time, lat, lon)
+prate_mm_h = prate_all * 3600
+prob_5mm = np.mean(prate_mm_h > 5, axis=(1, 2))   # fraction per timestep
+```
+
+### CAPE — instability classification and spatial statistics
+
+```python
+cape = ds["cape"].values   # J/kg, shape (time, lat, lon)
+
+# Instability categories at each grid point (latest forecast step)
+cape_now = cape[0]
+categories = np.select(
+    [cape_now < 300, cape_now < 1000, cape_now < 2500],
+    [0, 1, 2],            # 0=marginal, 1=moderate, 2=large
+    default=3,            # 3=extreme
+)
+
+# Area fraction with extreme instability (CAPE > 2500 J/kg) per timestep
+frac_extreme = np.mean(cape > 2500, axis=(1, 2))
+
+# Spatial percentiles at each forecast hour
+cape_flat = cape.reshape(cape.shape[0], -1)   # (time, n_points)
+p25, p50, p75 = np.percentile(cape_flat, [25, 50, 75], axis=1)
+```
+
+### Upper-air multi-level variables — vertical profiles
+
+```python
+from noawclg import load, auto_date
+import numpy as np
+import pandas as pd
+
+date, cycle = auto_date(lag_days=1)
+ds_ua = load(
+    date=date, cycle=cycle,
+    keys=["t", "r", "gh", "u", "v"],
+    region={"toplat": 5, "bottomlat": -15, "leftlon": -50, "rightlon": -30},
+    hours=[0, 24, 48],
+)
+
+# Nearest-point vertical profile at analysis time (h=0)
+prof = ds_ua.sel(latitude=-3.7, longitude=-38.5, method="nearest").isel(time=0)
+
+levels = prof["level"].values        # hPa array  e.g. [200, 250, ... 1000]
+T_prof = prof["t"].values            # °C
+RH_prof = prof["r"].values           # %
+gh_prof = prof["gh"].values          # gpm
+
+# Layer thickness (proportional to mean temperature)
+R, g = 287.05, 9.81
+for i in range(len(levels) - 1):
+    T_mean_K = (T_prof[i] + T_prof[i + 1]) / 2 + 273.15
+    dz = (R * T_mean_K / g) * np.log(levels[i] / levels[i + 1])
+    print(f"{levels[i]:4.0f}→{levels[i+1]:4.0f} hPa  Δz ≈ {dz:.0f} m")
+
+# Wind shear (m/s per hPa) between levels
+u_prof = prof["u"].values
+v_prof = prof["v"].values
+shear_u = np.diff(u_prof) / np.diff(levels)
+shear_v = np.diff(v_prof) / np.diff(levels)
+shear_mag = np.hypot(shear_u, shear_v)
+
+# Lifted index approximation: T_env(500) - T_parcel(500)
+# (simple: parcel raised dry-adiabatically from surface)
+T_sfc = T_prof[-1] + 273.15          # near-surface level (1000 hPa)
+T_500_env = T_prof[np.argmin(np.abs(levels - 500))] + 273.15
+lapse_dry = 9.8 / 1000               # °C/m
+dz_500 = gh_prof[np.argmin(np.abs(levels - 500))] - gh_prof[-1]
+T_500_parcel = T_sfc - lapse_dry * dz_500
+LI_approx = T_500_env - T_500_parcel
+print(f"Lifted index ≈ {LI_approx:.1f} K")
+```
+
+### Converting dataset to pandas for time-series analysis
+
+```python
+# Flatten the spatial domain into a DataFrame
+pt = ds.sel(latitude=-3.7, longitude=-38.5, method="nearest")
+df = pt.to_dataframe().reset_index()
+
+# Correlation matrix between all variables
+numeric_cols = ["t2m", "d2m", "u10", "v10", "prmsl", "r2", "cape"]
+corr = df[numeric_cols].corr()
+print(corr)
+
+# Descriptive statistics
+print(df[numeric_cols].describe())
+
+# Resample to 6-hourly means (data is on 3-h steps)
+df = df.set_index("valid_time") if "valid_time" in df.columns else df
+df_6h = df[numeric_cols].resample("6h").mean()
+
+# Peak detection on temperature using scipy
+from scipy.signal import find_peaks
+peaks, props = find_peaks(df["t2m"], prominence=1.5)
+print("Temperature maxima at hours:", df["t2m"].iloc[peaks].index.tolist())
+```
+
+---
+
+## GFS variable catalogue
+
+All 43 keys available in `noawclg.VARIABLES`.  Pass any subset as the `keys=`
+argument to `load()`, `get_noaa_data()`, or the build methods of
+`GFSDatasetManager`.
+
+```python
+from noawclg import VARIABLES, SURFACE_VARS, MULTILEVEL_VARS
+
+print(list(VARIABLES.keys()))   # all keys
+print(SURFACE_VARS)             # single-level keys (no level dimension)
+print(MULTILEVEL_VARS)          # pressure-level / multi-layer keys
+
+# Print key → description → units for every variable
+for key, meta in VARIABLES.items():
+    print(f"{key:8s}  {meta['long_name']:50s}  {meta['units']}")
+```
+
+> **Notes legend**  
+> `K→°C` — raw GRIB value is in Kelvin, converted to Celsius on load  
+> `Pa→hPa` — raw GRIB value is in Pascals, divided by 100 on load  
+> `pgrb2b` — variable lives in the secondary GRIB2 file; may require separate filter request  
+> `f000` — only present at forecast hour 0 (analysis step)  
+> `multilevel` — has a `level` coordinate; select with `.sel(level=…)`
+
+---
+
+### 2 m / surface — temperature and humidity
+
+| Key | Long name | Units | GRIB var | Notes |
+|-----|-----------|-------|----------|-------|
+| `t2m` | 2 metre temperature | °C | `TMP` @ 2 m | K→°C |
+| `d2m` | 2 metre dewpoint temperature | °C | `DPT` @ 2 m | K→°C |
+| `r2` | 2 metre relative humidity | % | `RH` @ 2 m | — |
+| `sh2` | 2 metre specific humidity | kg kg⁻¹ | `SPFH` @ 2 m | — |
+| `aptmp` | Apparent temperature (feels-like) | °C | `APTMP` @ 2 m | K→°C · pgrb2b |
+
+---
+
+### 10 m wind
+
+| Key | Long name | Units | GRIB var | Notes |
+|-----|-----------|-------|----------|-------|
+| `u10` | 10 metre U wind component | m s⁻¹ | `UGRD` @ 10 m | positive = eastward |
+| `v10` | 10 metre V wind component | m s⁻¹ | `VGRD` @ 10 m | positive = northward |
+| `gust` | Wind speed (gust) | m s⁻¹ | `GUST` @ surface | maximum gust |
+
+---
+
+### Pressure and terrain
+
+| Key | Long name | Units | GRIB var | Notes |
+|-----|-----------|-------|----------|-------|
+| `prmsl` | Pressure reduced to MSL | hPa | `PRMSL` @ mean sea level | Pa→hPa |
+| `mslet` | MSLP — Eta model reduction | hPa | `MSLET` @ mean sea level | Pa→hPa · pgrb2b |
+| `sp` | Surface pressure | hPa | `PRES` @ surface | Pa→hPa; at terrain height |
+| `orog` | Orography | m | `HGT` @ surface | terrain elevation |
+| `lsm` | Land-sea mask | 0–1 | `LAND` @ surface | 1 = land, 0 = sea |
+| `vis` | Visibility | m | `VIS` @ surface | — |
+
+---
+
+### Precipitation and hydrology
+
+| Key | Long name | Units | GRIB var | Notes |
+|-----|-----------|-------|----------|-------|
+| `prate` | Precipitation rate | kg m⁻² s⁻¹ | `PRATE` @ surface | multiply × 3600 → mm h⁻¹ |
+| `cpofp` | Percent frozen precipitation | % | `CPOFP` @ surface | fraction of precip that is frozen |
+| `crain` | Categorical rain | 0/1 | `CRAIN` @ surface | 1 = rain occurring |
+| `csnow` | Categorical snow | 0/1 | `CSNOW` @ surface | 1 = snow occurring |
+| `cfrzr` | Categorical freezing rain | 0/1 | `CFRZR` @ surface | 1 = freezing rain occurring |
+| `cicep` | Categorical ice pellets | 0/1 | `CICEP` @ surface | 1 = ice pellets occurring |
+| `sde` | Snow depth | m | `SNOD` @ surface | — |
+| `sdwe` | Water equiv. of accum. snow depth | kg m⁻² | `WEASD` @ surface | liquid-equivalent snow mass |
+| `pwat` | Precipitable water | kg m⁻² | `PWAT` @ entire atmosphere | total column water vapour |
+| `cwat` | Cloud water | kg m⁻² | `CWAT` @ entire atmosphere | total column liquid + ice |
+
+---
+
+### Cloud cover
+
+| Key | Long name | Units | GRIB var | Notes |
+|-----|-----------|-------|----------|-------|
+| `tcc` | Total cloud cover | % | `TCDC` @ entire atmosphere | all layers combined |
+| `lcc` | Low cloud cover | % | `TCDC` @ low cloud layer | below ~2 km · pgrb2b |
+| `mcc` | Medium cloud cover | % | `TCDC` @ middle cloud layer | ~2–6 km · pgrb2b |
+| `hcc` | High cloud cover | % | `TCDC` @ high cloud layer | above ~6 km · pgrb2b |
+
+---
+
+### Convection and instability
+
+| Key | Long name | Units | GRIB var | Notes |
+|-----|-----------|-------|----------|-------|
+| `cape` | Convective available potential energy | J kg⁻¹ | `CAPE` @ surface | > 0 = potential for deep convection |
+| `cin` | Convective inhibition | J kg⁻¹ | `CIN` @ surface | negative = inhibits convection |
+| `lftx` | Surface lifted index | K | `LFTX` @ surface | negative = unstable column |
+| `lftx4` | Best (4-layer) lifted index | K | `4LFTX` @ surface | most unstable of 4 layers |
+| `hlcy` | Storm relative helicity (0–3 km) | m² s⁻² | `HLCY` @ 0–3000 m layer | > 150 = elevated tornado risk |
+
+---
+
+### Upper-air — isobaric levels (multilevel)
+
+These variables carry a `level` coordinate (hPa). Select with `.sel(level=500)`.
+
+| Key | Long name | Units | GRIB var | Available levels (hPa) |
+|-----|-----------|-------|----------|------------------------|
+| `t` | Temperature | °C | `TMP` @ isobaric | 80 100 150 200 250 300 400 500 600 700 850 925 1000 · K→°C |
+| `r` | Relative humidity | % | `RH` @ isobaric | 80 100 150 200 250 300 400 500 600 700 850 925 1000 |
+| `q` | Specific humidity | kg kg⁻¹ | `SPFH` @ isobaric | 80 1000 |
+| `gh` | Geopotential height | gpm | `HGT` @ isobaric | 500 700 850 925 1000 |
+| `u` | U component of wind | m s⁻¹ | `UGRD` @ isobaric | 200 250 300 400 500 700 850 925 1000 |
+| `v` | V component of wind | m s⁻¹ | `VGRD` @ isobaric | 200 250 300 400 500 700 850 925 1000 |
+| `w` | Vertical velocity | Pa s⁻¹ | `VVEL` @ isobaric | 100 200 300 400 500 600 700 850 |
+| `absv` | Absolute vorticity | s⁻¹ | `ABSV` @ isobaric | 100 200 300 400 500 700 850 1000 |
+
+```python
+from noawclg import load, auto_date
+
+date, cycle = auto_date(lag_days=1)
+
+ds = load(
+    date=date, cycle=cycle,
+    keys=["t", "r", "gh", "u", "v"],
+    region={"toplat": 5, "bottomlat": -15, "leftlon": -50, "rightlon": -30},
+    hours=[0, 24, 48],
+)
+
+t500  = ds["t"].sel(level=500)          # temperature at 500 hPa
+gh850 = ds["gh"].sel(level=850)         # geopotential at 850 hPa
+
+# Full vertical profile at a point (all levels, hour 0)
+prof = ds.sel(latitude=-3.7, longitude=-38.5, method="nearest").isel(time=0)
+print(prof["t"].values)   # °C for each level
+```
+
+---
+
+### Soil — 4 depth layers (multilevel)
+
+Layer key (`level=`) corresponds to the **top** of each depth range.
+
+| Key | Long name | Units | GRIB var | Depth layers | Notes |
+|-----|-----------|-------|----------|--------------|-------|
+| `st` | Soil temperature | °C | `TSOIL` | 0–10, 10–40, 40–100, 100–200 cm | K→°C |
+| `soilw` | Volumetric soil moisture content | proportion | `SOILW` | 0–10, 10–40, 40–100, 100–200 cm | 0 = dry, 1 = saturated |
+
+```python
+ds_soil = load(date=date, cycle=cycle, keys=["st", "soilw"], hours=[0, 24])
+
+st_surface  = ds_soil["st"].sel(level=0)    # 0–10 cm layer
+st_deep     = ds_soil["st"].sel(level=100)  # 100–200 cm layer
+soilw_top   = ds_soil["soilw"].sel(level=0) # surface moisture
+```
+
+---
+
+### Diagnostics
+
+| Key | Long name | Units | GRIB var | Notes |
+|-----|-----------|-------|----------|-------|
+| `refc` | Maximum/Composite radar reflectivity | dB | `REFC` @ entire atmosphere | simulated composite reflectivity |
+| `siconc` | Sea ice area fraction | 0–1 | `ICEC` @ surface | 0 = open ocean, 1 = full ice cover |
+| `veg` | Vegetation | % | `VEG` @ surface | green vegetation fraction |
+| `tozne` | Total ozone | DU | `TOZNE` @ entire atmosphere | f000 only — analysis step |
+
+---
+
+### Hour-sequence constants
+
+```python
+from noawclg import HOURS_16DAYS, HOURS_5DAYS_1H, HOURS_10DAYS_3H, HOURS_16DAYS_3H
+```
+
+| Constant | Range | Step | Total steps | Use case |
+|----------|-------|------|-------------|----------|
+| `HOURS_5DAYS_1H` | 0–120 h | 1 h | 121 | Hourly detail, short range |
+| `HOURS_10DAYS_3H` | 0–240 h | 3 h | 81 | Medium range |
+| `HOURS_16DAYS_3H` | 0–384 h | 3 h | 129 | Full extended range |
+| `HOURS_16DAYS` | 0–120 h @ 6 h + 123–384 h @ 3 h | mixed | 107 | Legacy full run |
 
 ---
 
