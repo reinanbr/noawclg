@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+#: Full GFS variable catalogue — maps short name to metadata dict
+#: (long_name, units, grib_var, grib_lev, levels, converter, …).
 VARIABLES: dict[str, dict[str, Any]] = {
     # ── 2-metre / surface single-level ───────────────────────────────────────
     "t2m": {

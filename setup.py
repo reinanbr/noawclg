@@ -37,12 +37,6 @@ setup(
             "metpy>=1.6",
             "cmocean>=3.0",
         ],
-        "docs": [
-            "sphinx>=7.3",
-            "furo>=2024.1.29",
-            "myst-parser>=3.0",
-            "sphinx-autodoc-typehints>=2.2",
-        ],
         "dev": [
             "pytest>=8",
             "pytest-cov",

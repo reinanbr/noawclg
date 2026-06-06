@@ -2,25 +2,18 @@
 
 Data sources
 ------------
-NOAA NCEP GODAS (Global Ocean Data Assimilation System)
-    Monthly mean ocean fields on a ~1/3°×1° tripolar grid.
-    40 vertical levels: 5 m – 4 478 m.  Period: 1980 – present.
-    Free access via OPeNDAP (no login, lazy loading).
+**NOAA NCEP GODAS** — Monthly mean ocean fields on a ~1/3°×1° tripolar grid,
+40 vertical levels (5 m – 4 478 m), 1980 – present, via OPeNDAP.
 
-    Variables
-    ~~~~~~~~~
-    pottmp : Potential temperature      K → °C   (time, level, lat, lon)
-    salt   : Salinity                   kg/kg→PSU (time, level, lat, lon)
-    ucur   : U-current (eastward)       m/s       (time, level, lat, lon)
-    vcur   : V-current (northward)      m/s       (time, level, lat, lon)
-    sshg   : Sea surface height/geoid   m         (time, lat, lon)
+Variables: ``pottmp`` (K → °C), ``salt`` (kg/kg → PSU),
+``ucur``/``vcur`` (m/s), ``sshg`` (m).
 
-NOAA ERSST v5 (Extended Reconstructed Sea Surface Temperature)
-    Monthly SST anomalies, 2° grid, 1854 – present.  Single global file.
+**NOAA ERSST v5** — Monthly SST, 2° grid, 1854 – present, single global file.
 
 References
 ----------
 https://www.psl.noaa.gov/data/gridded/data.godas.html
+
 https://www.psl.noaa.gov/data/gridded/data.noaa.ersst.v5.html
 """
 
@@ -40,6 +33,8 @@ _GODAS_BASE = "https://psl.noaa.gov/thredds/dodsC/Datasets/godas/{var}.{year}.nc
 _ERSST_URL = "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.ersst.v5/sst.mnmean.nc"
 
 # ── GODAS variable catalogue ───────────────────────────────────────────────────
+#: Maps each GODAS variable name to its metadata
+#: (long_name, units_in, units_out, has_levels, valid_min).
 GODAS_VARS: dict[str, dict] = {
     "pottmp": {
         "long_name": "Potential temperature",
@@ -78,7 +73,8 @@ GODAS_VARS: dict[str, dict] = {
     },
 }
 
-# Standard ENSO monitoring boxes (0–360 ° longitude convention)
+#: Standard ENSO monitoring regions (longitude in 0–360 convention).
+#: Keys: ``"1+2"``, ``"3"``, ``"3.4"``, ``"4"``.
 NINO_BOXES: dict[str, dict] = {
     "1+2": {"lat": (-10.0, 0.0), "lon": (270.0, 280.0)},
     "3": {"lat": (-5.0, 5.0), "lon": (210.0, 270.0)},
