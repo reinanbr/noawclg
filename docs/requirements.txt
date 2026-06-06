@@ -1,0 +1,12 @@
+# Sphinx build dependencies for noawclg docs
+sphinx>=7.3
+furo>=2024.1.29
+myst-parser>=3.0
+sphinx-autodoc-typehints>=2.2
+# noawclg runtime deps (needed for autodoc to import the package)
+numpy
+pandas
+xarray
+netCDF4
+requests
+cfgrib

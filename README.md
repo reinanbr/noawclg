@@ -1,794 +1,218 @@
-# noawclg · GFS Dataset Manager
+# noawclg
 
-> **Download, cache and analyse NOAA GFS forecast data in one line of Python.**
-
+> **Download, analyse and visualise NOAA atmospheric and ocean data in Python.**
 
 ![PyPI Downloads](https://img.shields.io/pypi/dm/noawclg)
 [![PyPI](https://img.shields.io/pypi/v/noawclg)](https://pypi.org/project/noawclg/)
 [![Python](https://img.shields.io/pypi/pyversions/noawclg)](https://pypi.org/project/noawclg/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docs](https://readthedocs.org/projects/noawclg/badge/?version=latest)](https://noawclg.readthedocs.io)
 
-`noawclg` wraps the [NOAA NOMADS grib-filter](https://nomads.ncep.noaa.gov/) endpoint and exposes a clean Python API that lets you:
-
-- **Download** GFS 0.25° GRIB2 files with a single method call — one HTTP request per forecast hour regardless of how many variables you need.
-- **Cache** raw GRIB2 files to disk so repeated runs cost nothing.
-- **Extract** any combination of surface and upper-air variables into analysis-ready `xarray.Dataset` objects.
-- **Save** output as compressed NetCDF4 or chunked Zarr for downstream processing.
+`noawclg` gives you a clean Python API over two major NOAA data streams —
+**GFS weather forecasts** and **GODAS/ERSST ocean analyses** — returning
+`xarray.Dataset` objects ready for analysis and plotting.
 
 ---
 
-## Table of Contents
+## Features
 
-1. [Installation](#installation)
-2. [Quick Start](#quick-start)
-3. [How It Works](#how-it-works)
-4. [API Reference](#api-reference)
-   - [GFSDatasetManager](#gfsdatasetmanager)
-    - [get\_noaa\_data](#get_noaa_data)
-    - [load](#load)
-   - [build\_dataset](#build_dataset)
-   - [build\_multi\_dataset](#build_multi_dataset)
-   - [download\_hours](#download_hours)
-   - [save\_netcdf](#save_netcdf)
-   - [save\_zarr](#save_zarr)
-   - [load\_netcdf](#load_netcdf)
-   - [load\_zarr](#load_zarr)
-5. [Variable Catalogue](#variable-catalogue)
-6. [Pre-defined Hour Sequences](#pre-defined-hour-sequences)
-7. [Region Subsetting](#region-subsetting)
-8. [Logging](#logging)
-9. [Examples](#examples)
-10. [Contributing](#contributing)
-11. [License](#license)
+| | |
+|--|--|
+| **GFS forecasts** | 3-hourly, 0–384 h, surface + multi-level, GRIB2 via NOMADS |
+| **GODAS ocean** | `pottmp` · `salt` · `ucur` · `vcur` · `sshg` · 40 depth levels · 1980–present |
+| **ERSST v5** | SST back to 1854 · long climatologies via OPeNDAP |
+| **ENSO diagnostics** | ONI · Niño indices · D20 thermocline · WWV · phase classification |
+| **26 plot functions** | Synoptic maps · globe · ENSO time series · thermocline sections · wind rose |
+| **No API key** | All data via public OPeNDAP / NOMADS endpoints |
 
 ---
 
 ## Installation
 
 ```bash
-pip install noawclg
-```
-
-### System dependency — eccodes
-
-`cfgrib` requires the **eccodes** C library to decode GRIB2 files.
-
-| Platform | Command |
-|----------|---------|
-| Ubuntu / Debian | `sudo apt install libeccodes-dev` |
-| macOS (Homebrew) | `brew install eccodes` |
-| Conda (any OS) | `conda install -c conda-forge eccodes` |
-
----
-
-## Quick Start
-
-```python
-from noawclg import GFSDatasetManager
-
-# Create a manager for the 06 Z run of 2026-04-03
-mgr = GFSDatasetManager(date="20260403", cycle="06")
-
-# Download t2m + precipitation for the next 48 h (6-hourly)
-# → only 9 HTTP requests (one per hour), not 18
-ds = mgr.build_multi_dataset(
-    var_keys=["t2m", "prate"],
-    hours=list(range(0, 49, 6)),
-)
-
-print(ds)
-# <xarray.Dataset>
-# Dimensions:  (time: 9, latitude: 721, longitude: 1440)
-# Data variables:
-#     t2m      (time, latitude, longitude) float64 ...
-#     prate    (time, latitude, longitude) float64 ...
-
-mgr.save_netcdf(ds, "/tmp/gfs_48h.nc")
+pip install noawclg                   # core
+pip install "noawclg[plots]"          # + cartopy, metpy, windrose, seaborn
 ```
 
 ---
 
-## How It Works
+## Quick start
 
-### Single-download architecture
-
-Previous approaches sent **one HTTP request per variable per forecast hour**.  
-For 5 variables × 48 hours that means **240 requests**.
-
-`noawclg` exploits the NOMADS grib-filter's multi-variable syntax to bundle every requested variable into a **single URL per hour**:
-
-```
-https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25_1hr.pl
-  ?dir=/gfs.20260403/06/atmos
-  &file=gfs.t06z.pgrb2.0p25.f024
-  &var_TMP=on&lev_2_m_above_ground=on       ← t2m
-  &var_PRATE=on&lev_surface=on              ← prate
-  &var_PRMSL=on&lev_mean_sea_level=on       ← prmsl
-  &subregion=&toplat=5&bottomlat=-35&...    ← optional region
-```
-
-**Result:** 5 variables × 48 hours = **9 requests** (one per hour).
-
-### Disk cache
-
-Every downloaded GRIB2 file is saved under `output_dir` with a deterministic filename that encodes the date, cycle, variable set, region tag and forecast hour:
-
-```
-gfs_20260403_06z_prate_t2m_5N35S75W34E_f024.grib2
-```
-
-On subsequent runs the file is reused without any network I/O.
-
-### cfgrib extraction
-
-After downloading, each variable is extracted from the cached GRIB2 using `cfgrib` with a cascade of filter strategies (shortName → typeOfLevel → full scan) to handle the GRIB table inconsistencies that appear across GFS versions and sub-region files.
-
----
-
-## API Reference
-
-### `GFSDatasetManager`
+### GFS forecast
 
 ```python
-GFSDatasetManager(
-    date: str,
-    cycle: str = "00",
-    output_dir: str = "./gfs_output",
-    region: dict | None = None,
-    pause: float = 1.5,
-)
-```
+from noawclg import load, auto_date
 
-Main entry point. All other methods are called on an instance of this class.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `date` | `str` | Model run date in `YYYYMMDD` format. **Required.** |
-| `cycle` | `str` | Model run cycle: `"00"`, `"06"`, `"12"` or `"18"`. Default `"00"`. |
-| `output_dir` | `str` | Directory where GRIB2 files are cached. Created automatically. Default `"./gfs_output"`. |
-| `region` | `dict \| None` | Bounding box for spatial subsetting (see [Region Subsetting](#region-subsetting)). `None` downloads the global grid. |
-| `pause` | `float` | Seconds to sleep between consecutive HTTP requests. Helps avoid rate-limiting on NOMADS. Default `1.5`. |
-
-**Raises:** `ValueError` if `cycle` is not one of the four valid values.  
-**Raises:** `ValueError` if `date` does not match `YYYYMMDD`.
-
-```python
-from noawclg import GFSDatasetManager
-
-mgr = GFSDatasetManager(
-    date="20260403",
-    cycle="06",
-    output_dir="./cache",
-    region={"toplat": 5, "bottomlat": -35, "leftlon": -75, "rightlon": -34},
-    pause=2.0,
-)
-```
-
----
-
-### `get_noaa_data`
-
-```python
-get_noaa_data(
-    date: str | None = None,
-    cycle: str = "00",
-    keys: list[str] = ["t2m"],
-    hours: list[int] | None = None,
-    *,
-    lat_dim: str | None = None,
-    lon_dim: str | None = None,
-    time_dim: str | None = None,
-)
-```
-
-High-level convenience wrapper for geocoded and point-based queries over GFS data.
-
-This class loads one or more variables and lets you query the nearest grid point by:
-- Direct coordinates (`get_data_from_point`)
-- Place name via geocoding (`get_data_from_place`)
-- Full time-series extraction (`get_time_series`)
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `date` | `str \| None` | Date in `DD/MM/YYYY` format. If omitted, current date is used. |
-| `cycle` | `str` | Model cycle: `"00"`, `"06"`, `"12"`, `"18"`. Default `"00"`. |
-| `keys` | `list[str]` | Variable keys from [Variable Catalogue](#variable-catalogue). Default `['t2m']`. |
-| `hours` | `list[int] \| None` | Forecast hours to load. Default is `0..384` every 3 h. |
-| `lat_dim` | `str \| None` | Optional latitude coordinate name override. |
-| `lon_dim` | `str \| None` | Optional longitude coordinate name override. |
-| `time_dim` | `str \| None` | Optional time coordinate name override. |
-
-> Note: `get_noaa_data` is defined in `noawclg.main`.
-
-```python
-from noawclg.main import get_noaa_data
-
-noaa = get_noaa_data(
-    date="03/04/2026",
-    cycle="06",
-    keys=["t2m", "prate"],
-    hours=list(range(0, 49, 6)),
-)
-
-# by coordinates (lat, lon)
-point_data = noaa.get_data_from_point((-3.73, -38.52))
-print(point_data["t2m"])
-
-# by place name
-city_data = noaa.get_data_from_place("Fortaleza, Brazil")
-print(city_data.to_dataframe().head())
-```
-
----
-
-### `load`
-
-```python
-load(
-    date: str | None = None,
-    cycle: str = "00",
-    keys: list[str] = ["t2m"],
-    hours: list[int] | None = None,
-    *,
-    lat_dim: str | None = None,
-    lon_dim: str | None = None,
-    time_dim: str | None = None,
-) -> xr.Dataset
-```
-
-Functional convenience wrapper that returns the underlying `xarray.Dataset`
-directly.
-
-Internally, `load(...)` calls `get_noaa_data(...)` with the same arguments and
-returns `._ds`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `date` | `str \| None` | Date in `DD/MM/YYYY` format. If omitted, current date is used. |
-| `cycle` | `str` | Model cycle: `"00"`, `"06"`, `"12"`, `"18"`. Default `"00"`. |
-| `keys` | `list[str]` | Variable keys from [Variable Catalogue](#variable-catalogue). Default `['t2m']`. |
-| `hours` | `list[int] \| None` | Forecast hours to load. Default is `0..384` every 3 h. |
-| `lat_dim` | `str \| None` | Optional latitude coordinate name override. |
-| `lon_dim` | `str \| None` | Optional longitude coordinate name override. |
-| `time_dim` | `str \| None` | Optional time coordinate name override. |
-
-```python
-from noawclg import load
-
+date, cycle = auto_date(lag_days=1)
 ds = load(
-    date="03/04/2026",
-    cycle="06",
-    keys=["t2m", "prate"],
-    hours=list(range(0, 25, 6)),
+    date=date, cycle=cycle,
+    lat=-3.7, lon=-38.5,                         # Fortaleza, Brazil
+    region={"toplat": 5, "bottomlat": -15,
+            "leftlon": -50, "rightlon": -30},
+    hours=list(range(0, 49, 3)),
 )
 
-print(ds.data_vars)
+from plots import plot_synoptic_map
+plot_synoptic_map(ds, hour=24, save_path="synoptic.png")
 ```
 
-#### `get_data_from_point`
+### Ocean data at 200 m
 
 ```python
-noaa.get_data_from_point(
-    point: tuple[float, float],
-    *,
-    time: str | slice | list | None = None,
-    tolerance: float | None = None,
-) -> _DatasetView
+from noawclg import get_ocean_temp, get_salinity, get_currents, get_ssh
+
+t200 = get_ocean_temp(2024, depth_m=200)         # °C  (12, lat, lon)
+sal  = get_salinity(2024, depth_m=5)             # PSU (12, lat, lon)
+curr = get_currents(2024, depth_m=5)             # Dataset: ucur, vcur, speed
+ssh  = get_ssh(2024)                             # m   (12, lat, lon)
 ```
 
-Returns data from the nearest grid point to `(lat, lon)`. Longitude is automatically normalized to the dataset convention.
-
-#### `get_data_from_place`
+### ENSO monitoring
 
 ```python
-noaa.get_data_from_place(
-    place: str,
-    *,
-    time: str | slice | list | None = None,
-    tolerance: float | None = None,
-) -> _DatasetView
+from noawclg import enso_summary, get_oni, classify_enso
+from plots import plot_enso_index
+
+df  = enso_summary(2015, 2024)
+oni = get_oni(2015, 2024)
+fig = plot_enso_index(oni, classify_enso(oni), save_path="oni.png")
 ```
 
-Geocodes a place name and forwards to `get_data_from_point`.
-
-#### `get_time_series`
+### Globe plot
 
 ```python
-noaa.get_time_series(
-    point: tuple[float, float],
-    variable: str | None = None,
-) -> xr.Dataset | xr.DataArray
-```
-
-Returns full time-series at the nearest grid point. If `variable` is provided, returns only that variable.
-
-#### `get_keys`
-
-```python
-noaa.get_keys() -> dict[str, str]
-```
-
-Returns `{variable: long_name}` for every variable in the loaded dataset.
-
----
-
-### `build_dataset`
-
-```python
-mgr.build_dataset(
-    var_key: str,
-    hours: list[int],
-    force_download: bool = False,
-) -> xr.Dataset
-```
-
-Download and assemble a Dataset for a **single variable**.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `var_key` | `str` | Variable key from the [Variable Catalogue](#variable-catalogue). |
-| `hours` | `list[int]` | Forecast hours to include (e.g. `[0, 6, 12, 24]`). |
-| `force_download` | `bool` | If `True`, re-download even if cached files exist. Default `False`. |
-
-**Returns:** `xr.Dataset` with dimensions:
-- Surface/single-level variables → `(time, latitude, longitude)`
-- Multi-level variables → `(time, level, latitude, longitude)`
-
-Both datasets include a `forecast_hour` coordinate aligned to the `time` dimension.
-
-**Raises:** `RuntimeError` if no files could be downloaded or read.
-
-```python
-ds = mgr.build_dataset("t2m", hours=[0, 6, 12, 24, 48])
-print(ds["t2m"].dims)   # ('time', 'latitude', 'longitude')
-print(ds["t2m"].attrs)  # {'long_name': '2 metre temperature', 'units': 'C', ...}
-```
-
----
-
-### `build_multi_dataset`
-
-```python
-mgr.build_multi_dataset(
-    var_keys: list[str],
-    hours: list[int],
-    force_download: bool = False,
-) -> xr.Dataset
-```
-
-Download **one file per hour** containing **all** requested variables, then extract and merge them into a single Dataset.
-
-This is the recommended method when you need more than one variable — it uses `N_hours` requests instead of `N_vars × N_hours`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `var_keys` | `list[str]` | List of variable keys from the [Variable Catalogue](#variable-catalogue). |
-| `hours` | `list[int]` | Forecast hours to include. |
-| `force_download` | `bool` | Re-download even if cached. Default `False`. |
-
-**Returns:** `xr.Dataset` with all requested variables merged via `xr.merge(..., join="inner")`.
-
-Variables that fail to extract are logged and skipped; a `RuntimeError` is raised only if *all* variables fail.
-
-```python
-ds = mgr.build_multi_dataset(
-    var_keys=["t2m", "prmsl", "prate", "u10", "v10"],
-    hours=list(range(0, 25, 6)),
-)
-# ds contains t2m, prmsl, prate, u10, v10 all on the same time axis
-```
-
----
-
-### `download_hours`
-
-```python
-mgr.download_hours(
-    var_keys: list[str],
-    hours: list[int],
-    force: bool = False,
-) -> dict[int, Path]
-```
-
-Low-level method that performs the actual HTTP downloads.  
-Called internally by `build_dataset` and `build_multi_dataset`, but exposed for advanced use cases (e.g. downloading files without immediately building a Dataset).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `var_keys` | `list[str]` | Variables to bundle into each download URL. |
-| `hours` | `list[int]` | Forecast hours to download. |
-| `force` | `bool` | Re-download cached files. Default `False`. |
-
-**Returns:** `dict[int, Path]` — mapping of `{hour: path_to_grib2_file}` for every successfully downloaded hour.
-
-Files already on disk are returned immediately without any network I/O (cache hit is logged at `INFO` level).
-
-```python
-files = mgr.download_hours(["t2m", "prate"], hours=[0, 6, 12])
-# {0: PosixPath('.../gfs_..._f000.grib2'),
-#  6: PosixPath('.../gfs_..._f006.grib2'),
-#  12: PosixPath('.../gfs_..._f012.grib2')}
-```
-
----
-
-### `save_netcdf`
-
-```python
-mgr.save_netcdf(
-    ds: xr.Dataset,
-    filename: str,
-    complevel: int = 4,
-) -> Path
-```
-
-Save a Dataset to a **zlib-compressed NetCDF4** file.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `ds` | `xr.Dataset` | Dataset to save. |
-| `filename` | `str` | Output file path. Absolute paths are used as-is; relative paths are resolved against `output_dir`. |
-| `complevel` | `int` | zlib compression level 1–9 (higher = smaller file, slower write). Default `4`. |
-
-**Returns:** `Path` — absolute path of the saved file.
-
-```python
-path = mgr.save_netcdf(ds, "/data/gfs_t2m_48h.nc")
-# or relative (saved inside output_dir):
-path = mgr.save_netcdf(ds, "gfs_t2m_48h.nc")
-```
-
----
-
-### `save_zarr`
-
-```python
-mgr.save_zarr(
-    ds: xr.Dataset,
-    store: str,
-) -> Path
-```
-
-Save a Dataset as a **chunked Zarr store** (directory).
-
-Zarr is preferred over NetCDF for large time-series because it supports:
-- Lazy chunked reads without loading the whole file into memory.
-- Appending new timesteps without rewriting existing data.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `ds` | `xr.Dataset` | Dataset to save. |
-| `store` | `str` | Output directory path. Relative paths are resolved against `output_dir`. |
-
-**Returns:** `Path` — absolute path of the Zarr store directory.
-
-```python
-path = mgr.save_zarr(ds, "gfs_surface_16days.zarr")
-```
-
----
-
-### `load_netcdf`
-
-```python
-GFSDatasetManager.load_netcdf(path: str | Path) -> xr.Dataset
-```
-
-Static method. Lazily open a previously saved NetCDF file using Dask-backed chunking.
-
-```python
-ds = GFSDatasetManager.load_netcdf("/data/gfs_t2m_48h.nc")
-print(dict(ds.dims))  # {'time': 9, 'latitude': 721, 'longitude': 1440}
-```
-
----
-
-### `load_zarr`
-
-```python
-GFSDatasetManager.load_zarr(store: str | Path) -> xr.Dataset
-```
-
-Static method. Lazily open a previously saved Zarr store.
-
-```python
-ds = GFSDatasetManager.load_zarr("gfs_surface_16days.zarr")
-```
-
----
-
-## Variable Catalogue
-
-Access the full catalogue at runtime:
-
-```python
-from noawclg import VARIABLES, SURFACE_VARS, MULTILEVEL_VARS
-
-print(SURFACE_VARS)    # all 2-D (no level dimension) variable keys
-print(MULTILEVEL_VARS) # all variables with a vertical level dimension
-```
-
-### Surface / single-level variables
-
-| Key | Long name | Units |
-|-----|-----------|-------|
-| `t2m` | 2 metre temperature | °C |
-| `d2m` | 2 metre dewpoint temperature | °C |
-| `r2` | 2 metre relative humidity | % |
-| `sh2` | 2 metre specific humidity | kg kg⁻¹ |
-| `aptmp` | Apparent temperature | °C |
-| `u10` | 10 metre U wind component | m s⁻¹ |
-| `v10` | 10 metre V wind component | m s⁻¹ |
-| `gust` | Wind speed (gust) | m s⁻¹ |
-| `prmsl` | Pressure reduced to MSL | hPa |
-| `mslet` | MSLP (Eta model reduction) | hPa |
-| `sp` | Surface pressure | hPa |
-| `orog` | Orography | m |
-| `lsm` | Land-sea mask | 0–1 |
-| `vis` | Visibility | m |
-| `prate` | Precipitation rate | kg m⁻² s⁻¹ |
-| `cpofp` | Percent frozen precipitation | % |
-| `crain` | Categorical rain | — |
-| `csnow` | Categorical snow | — |
-| `cfrzr` | Categorical freezing rain | — |
-| `cicep` | Categorical ice pellets | — |
-| `sde` | Snow depth | m |
-| `sdwe` | Water equivalent of snow depth | kg m⁻² |
-| `pwat` | Precipitable water | kg m⁻² |
-| `cwat` | Cloud water | kg m⁻² |
-| `tcc` | Total cloud cover | % |
-| `lcc` | Low cloud cover | % |
-| `mcc` | Medium cloud cover | % |
-| `hcc` | High cloud cover | % |
-| `lftx` | Surface lifted index | K |
-| `lftx4` | Best (4-layer) lifted index | K |
-| `hlcy` | Storm relative helicity | m² s⁻² |
-| `refc` | Composite radar reflectivity | dB |
-| `siconc` | Sea ice area fraction | 0–1 |
-| `veg` | Vegetation | % |
-| `tozne` | Total ozone | DU |
-
-### Multi-level variables
-
-These variables include a `level` dimension in the output Dataset.
-
-| Key | Long name | Units | Levels |
-|-----|-----------|-------|--------|
-| `t` | Temperature | °C | 80–1000 hPa (13 levels) |
-| `r` | Relative humidity | % | 80–1000 hPa (13 levels) |
-| `q` | Specific humidity | kg kg⁻¹ | 80, 1000 hPa |
-| `gh` | Geopotential height | gpm | 500–1000 hPa (5 levels) |
-| `u` | U component of wind | m s⁻¹ | 200–1000 hPa (9 levels) |
-| `v` | V component of wind | m s⁻¹ | 200–1000 hPa (9 levels) |
-| `w` | Vertical velocity | Pa s⁻¹ | 100–850 hPa (8 levels) |
-| `absv` | Absolute vorticity | s⁻¹ | 100–1000 hPa (8 levels) |
-| `cape` | CAPE | J kg⁻¹ | surface layers |
-| `cin` | Convective inhibition | J kg⁻¹ | surface layers |
-| `st` | Soil temperature | °C | 0–100 cm (4 layers) |
-| `soilw` | Volumetric soil moisture | Proportion | 0–100 cm (4 layers) |
-
----
-
-### Multi-level variables — pgrb2 vs pgrb2b
-
-
-| Key | Long name | Units | Nota |
-|-----|-----------|-------|------|
-| `t2m` | 2 metre temperature | °C | ✅ pgrb2 |
-| `d2m` | 2 metre dewpoint temperature | °C | ✅ pgrb2 |
-| `r2` | 2 metre relative humidity | % | ✅ pgrb2 |
-| `sh2` | 2 metre specific humidity | kg kg⁻¹ | ✅ pgrb2 |
-| **`aptmp`** | Apparent temperature | °C | ⛔ pgrb2b only |
-| `u10` | 10 metre U wind component | m s⁻¹ | ✅ pgrb2 |
-| `v10` | 10 metre V wind component | m s⁻¹ | ✅ pgrb2 |
-| `gust` | Wind speed (gust) | m s⁻¹ | ✅ pgrb2 |
-| `prmsl` | Pressure reduced to MSL | hPa | ✅ pgrb2 |
-| `mslet` | MSLP (Eta model reduction) | hPa | ✅ pgrb2 |
-| `sp` | Surface pressure | hPa | ✅ pgrb2 |
-| `orog` | Orography | m | ✅ pgrb2 |
-| `lsm` | Land-sea mask | 0–1 | ✅ pgrb2 |
-| `vis` | Visibility | m | ✅ pgrb2 |
-| `prate` | Precipitation rate | kg m⁻² s⁻¹ | ✅ pgrb2 |
-| `cpofp` | Percent frozen precipitation | % | ✅ pgrb2 |
-| `crain` | Categorical rain | — | ✅ pgrb2 |
-| `csnow` | Categorical snow | — | ✅ pgrb2 |
-| `cfrzr` | Categorical freezing rain | — | ✅ pgrb2 |
-| `cicep` | Categorical ice pellets | — | ✅ pgrb2 |
-| `sde` | Snow depth | m | ✅ pgrb2 |
-| `sdwe` | Water equivalent of snow depth | kg m⁻² | ✅ pgrb2 |
-| `pwat` | Precipitable water | kg m⁻² | ✅ pgrb2 |
-| `cwat` | Cloud water | kg m⁻² | ✅ pgrb2 |
-| `tcc` | Total cloud cover | % | ✅ pgrb2 |
-| **`lcc`** | Low cloud cover | % | ⛔ pgrb2b only |
-| **`mcc`** | Medium cloud cover | % | ⛔ pgrb2b only |
-| **`hcc`** | High cloud cover | % | ⛔ pgrb2b only |
-| `lftx` | Surface lifted index | K | ✅ pgrb2 |
-| `lftx4` | Best (4-layer) lifted index | K | ✅ pgrb2 |
-| **`hlcy`** | Storm relative helicity | m² s⁻² | ⛔ heightAboveGroundLayer (endpoint diferente) |
-| `refc` | Composite radar reflectivity | dB | ✅ pgrb2 |
-| `siconc` | Sea ice area fraction | 0–1 | ✅ pgrb2 |
-| `veg` | Vegetation | % | ✅ pgrb2 |
-| **`tozne`** | Total ozone | DU | ⛔ f000 only |
-
-
-
-| Key | Long name | Units | Nota |
-|-----|-----------|-------|------|
-| **`t`** | Temperature | °C | ⛔ pgrb2b only |
-| **`r`** | Relative humidity | % | ⛔ pgrb2b only |
-| **`q`** | Specific humidity | kg kg⁻¹ | ⛔ pgrb2b only |
-| **`gh`** | Geopotential height | gpm | ⛔ pgrb2b only |
-| **`u`** | U component of wind | m s⁻¹ | ⛔ pgrb2b only |
-| **`v`** | V component of wind | m s⁻¹ | ⛔ pgrb2b only |
-| **`w`** | Vertical velocity | Pa s⁻¹ | ⛔ pgrb2b only |
-| **`absv`** | Absolute vorticity | s⁻¹ | ⛔ pgrb2b only |
-| `cape` | CAPE | J kg⁻¹ | ✅ pgrb2 |
-| `cin` | Convective inhibition | J kg⁻¹ | ✅ pgrb2 |
-| **`st`** | Soil temperature | °C | ⛔ depthBelowLandLayer (não exposto) |
-| **`soilw`** | Volumetric soil moisture | Proportion | ⛔ depthBelowLandLayer (não exposto) |
-
----
-
-
-## Pre-defined Hour Sequences
-
-```python
-from noawclg import (
-    HOURS_16DAYS,     # 0–120 h (6-hourly) + 123–384 h (3-hourly) — full 16-day run
-    HOURS_5DAYS_1H,   # 0–120 h (1-hourly)
-    HOURS_10DAYS_3H,  # 0–240 h (3-hourly)
-    HOURS_16DAYS_3H,  # 0–120 h (3-hourly) + 123–384 h (3-hourly)
+from plots import plot_globe
+
+plot_globe(
+    t200.mean("time"),
+    title="Mean Ocean Temperature at 200 m — 2024",
+    cmap="RdYlBu_r",
+    central_longitude=-150,
+    save_path="globe.png",
 )
 ```
 
-Use them directly with `build_dataset` or `build_multi_dataset`:
+---
 
-```python
-ds = mgr.build_dataset("t2m", hours=HOURS_16DAYS)
+## Module overview
+
+```
+noawclg/
+├── catalog.py      — GFS variable catalogue and hour sequences
+├── coords.py       — BoundingBox, auto_date
+├── gfs_dataset.py  — GFSDatasetManager (download, build, cache)
+├── http.py         — low-level GRIB2 download via NOMADS
+├── load.py         — noawclg.load() one-liner wrapper
+├── ocean.py        — GODAS / ERSST: temperature, salinity,
+│                     currents, SSH, ENSO indices, WWV, D20
+├── persistence.py  — NetCDF4 / Zarr save and load
+├── query.py        — get_noaa_data() high-level interface
+└── view.py         — dataset inspection helpers
+
+plots.py            — 26 plot functions (GFS + ocean/ENSO)
+make_readme_plots.py— generates the gallery below with synthetic data
 ```
 
 ---
 
-## Region Subsetting
+## Documentation
 
-Pass a `region` dict to download only the data inside a bounding box.  
-This dramatically reduces file size and download time for regional studies.
+Full documentation, API reference and examples are on **ReadTheDocs**:
 
-```python
-# South America
-REGION_SA = {
-    "toplat":    12,
-    "bottomlat": -56,
-    "leftlon":   -82,
-    "rightlon":  -34,
-}
+**[noawclg.readthedocs.io](https://noawclg.readthedocs.io)**
 
-# Brazil
-REGION_BR = {
-    "toplat":    5,
-    "bottomlat": -35,
-    "leftlon":   -75,
-    "rightlon":  -34,
-}
-
-mgr = GFSDatasetManager(
-    date="20260403",
-    cycle="06",
-    region=REGION_BR,
-)
-```
-
-Pass `region=None` (the default) for a global download.
-
-> **Note:** The region tag is embedded in the cache filename, so global and regional downloads never collide even when sharing the same `output_dir`.
+Topics covered:
+- [Installation](https://noawclg.readthedocs.io/en/latest/installation.html)
+- [Quick start](https://noawclg.readthedocs.io/en/latest/quickstart.html)
+- [GFS basics](https://noawclg.readthedocs.io/en/latest/examples/gfs_basics.html)
+- [ENSO analysis](https://noawclg.readthedocs.io/en/latest/examples/enso_analysis.html)
+- [Maps & globe plots](https://noawclg.readthedocs.io/en/latest/examples/maps_globe.html)
+- [API reference](https://noawclg.readthedocs.io/en/latest/api/index.html)
 
 ---
 
-## Logging
+## Plot gallery
 
-`noawclg` uses Python's standard `logging` module under the logger name `gfs_dataset`.  
-Enable it in your application to see download progress, cache hits and extraction warnings:
+Generated with `python make_readme_plots.py` using synthetic GFS data.
 
-```python
-import logging
+<table>
+<tr>
+<td align="center" width="50%">
+<b>Synoptic surface map</b><br>
+<sub>T2m · MSLP isobars · 10 m wind barbs</sub><br>
+<img src="docs/_static/plots/plot_01_synoptic_map.png"/>
+</td>
+<td align="center" width="50%">
+<b>Wind speed map</b><br>
+<sub>10 m wind speed fill + barbs</sub><br>
+<img src="docs/_static/plots/plot_02_wind_speed_map.png"/>
+</td>
+</tr>
+<tr>
+<td align="center">
+<b>CAPE map</b><br>
+<sub>Convective Available Potential Energy</sub><br>
+<img src="docs/_static/plots/plot_04_cape_map.png"/>
+</td>
+<td align="center">
+<b>Forecast time series</b><br>
+<sub>T2m · dew point · MSLP · precipitation</sub><br>
+<img src="docs/_static/plots/plot_06_timeseries.png"/>
+</td>
+</tr>
+<tr>
+<td align="center">
+<b>Wind rose</b><br>
+<sub>Frequency by direction and speed category</sub><br>
+<img src="docs/_static/plots/plot_11_wind_rose.png"/>
+</td>
+<td align="center">
+<b>Vertical profiles</b><br>
+<sub>T + RH vs pressure at several forecast times</sub><br>
+<img src="docs/_static/plots/plot_13_vertical_profiles.png"/>
+</td>
+</tr>
+<tr>
+<td align="center">
+<b>500 hPa geopotential + jet</b><br>
+<sub>Wind speed and height contours</sub><br>
+<img src="docs/_static/plots/plot_14_500hpa_jet.png"/>
+</td>
+<td align="center">
+<b>Hovmöller diagram</b><br>
+<sub>Precipitation vs longitude and time</sub><br>
+<img src="docs/_static/plots/plot_15_hovmoller_lon_precip.png"/>
+</td>
+</tr>
+<tr>
+<td align="center">
+<b>Precipitation heatmap</b><br>
+<sub>Daily rain by day of week</sub><br>
+<img src="docs/_static/plots/plot_17_precip_heatmap.png"/>
+</td>
+<td align="center">
+<b>Dashboard</b><br>
+<sub>4-panel overview</sub><br>
+<img src="docs/_static/plots/plot_20_dashboard.png"/>
+</td>
+</tr>
+</table>
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(message)s",
-    datefmt="%H:%M:%S",
-)
-```
-
-Sample output:
-
-```
-10:02:15  INFO      Download: 9 hour(s) × 1 file each = 9 request(s)  (vars: ['t2m', 'prate'])
-10:02:17  INFO      [multi] → f000  https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25_1hr.pl?...
-10:02:19  INFO        [ok] f000  284 KB  |  11.1%  (1/9)  elapsed=2.1s  remaining≈15.2s
-10:02:21  INFO      [cache] f006  gfs_20260403_06z_prate_t2m_global_f006.grib2
-10:02:21  INFO      Extracting 't2m' …
-10:02:21  INFO      Extracting 'prate' …
-```
-
----
-
-## Examples
-
-### 1 — Surface forecast for Brazil, 48 h
-
-```python
-from noawclg import GFSDatasetManager
-
-mgr = GFSDatasetManager(
-    date="20260403",
-    cycle="06",
-    region={"toplat": 5, "bottomlat": -35, "leftlon": -75, "rightlon": -34},
-)
-
-ds = mgr.build_multi_dataset(
-    var_keys=["t2m", "prate", "prmsl", "u10", "v10"],
-    hours=list(range(0, 49, 6)),
-)
-mgr.save_netcdf(ds, "gfs_brazil_48h.nc")
-```
-
-### 2 — Upper-air wind profile, global, 24 h
-
-```python
-ds = mgr.build_multi_dataset(
-    var_keys=["u", "v", "gh"],   # multi-level isobaric
-    hours=list(range(0, 25, 6)),
-)
-# ds["u"] has dims (time, level, latitude, longitude)
-u_500 = ds["u"].sel(level=500)   # wind at 500 hPa
-```
-
-### 3 — 16-day t2m time-series, saved as Zarr
-
-```python
-from noawclg import GFSDatasetManager, HOURS_16DAYS
-
-mgr = GFSDatasetManager(date="20260403", cycle="00")
-ds  = mgr.build_dataset("t2m", hours=HOURS_16DAYS)
-mgr.save_zarr(ds, "gfs_t2m_16days.zarr")
-```
-
-### 4 — Reload and compute a daily mean
-
-```python
-import xarray as xr
-from noawclg import GFSDatasetManager
-
-ds   = GFSDatasetManager.load_netcdf("gfs_brazil_48h.nc")
-t2m  = ds["t2m"]
-daily_mean = t2m.resample(time="1D").mean()
-print(daily_mean)
-```
-
-### 5 — Download only (no Dataset construction)
-
-```python
-files = mgr.download_hours(
-    var_keys=["t2m", "prate"],
-    hours=[0, 6, 12, 24],
-)
-# {0: PosixPath('./gfs_output/gfs_20260403_06z_prate_t2m_global_f000.grib2'), ...}
-```
+Full gallery with all 20 plots → [docs/gallery](https://noawclg.readthedocs.io/en/latest/gallery/index.html)
 
 ---
 
 ## Contributing
 
-Pull requests are welcome. For major changes please open an issue first to discuss what you would like to change.
-
 ```bash
 git clone https://github.com/reinanbr/noawclg
 cd noawclg
 pip install -e ".[dev]"
+pytest
 ```
 
----
+Pull requests and issues are welcome on [GitHub](https://github.com/reinanbr/noawclg/issues).
 
 ## License
 
-[MIT](LICENSE) © Reinan BR
+MIT — see [LICENSE](LICENSE).

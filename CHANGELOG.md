@@ -6,6 +6,85 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+
+## [2.3.0] — 2026-06-05
+
+### Added
+
+#### `noawclg/ocean.py` — ocean data module (GODAS + ERSST)
+- `open_godas(year, variable, depth_m, region)` — lazy OPeNDAP access to all
+  five GODAS variables: `pottmp` (temperature, K→°C), `salt` (salinity,
+  kg/kg→PSU), `ucur`/`vcur` (ocean currents, m/s), `sshg` (SSH, m).
+- `get_godas(year_start, year_end, variable, depth_m, region)` — multi-year
+  concatenation for any GODAS variable.
+- `get_ocean_temp` / `get_salinity` / `get_currents` / `get_ssh` — typed
+  convenience wrappers with sensible defaults.
+- `open_ersst(year_start, year_end, region)` — NOAA ERSST v5 via OPeNDAP,
+  SST back to 1854; handles ERSST's decreasing-latitude grid automatically.
+- `get_sst_series(box, source)` — monthly Niño-box SST from GODAS or ERSST.
+- `get_nino_anomaly` / `get_oni` — SST anomalies and the Oceanic Niño Index.
+- `classify_enso(oni)` — CPC ONI rule: El Niño / La Niña / Neutral.
+- `get_thermocline_depth` — depth of the 20 °C isotherm (D20) from GODAS.
+- `get_warm_water_volume` — equatorial Pacific WWV index (leading indicator).
+- `enso_summary(year_start, year_end)` — DataFrame with SST, anomaly, ONI,
+  and ENSO phase for any year range.
+- `GODAS_VARS` catalogue dict and `NINO_BOXES` (Niño 1+2 / 3 / 3.4 / 4).
+- All symbols exported from `noawclg.__init__`.
+
+#### `plots.py` — six new ocean/ENSO plot functions
+- `plot_enso_index` — ONI time series with El Niño / La Niña shading.
+- `plot_ocean_temp_map` — global T map with optional Niño-box overlays.
+- `plot_thermocline_section` — depth–longitude cross-section + 20 °C isotherm.
+- `plot_ssh_map` — symmetric SSH anomaly map.
+- `plot_ocean_currents` — speed-filled map with quiver arrows.
+- `plot_globe` — any 2-D field on a cartopy Orthographic globe.
+
+#### `enso_forecast.py` — real-data ENSO analysis script
+- Downloads live GODAS (T200, SSH) + ERSST (ONI) via `noawclg.ocean`.
+- Five-indicator probability model: ONI current, ONI trend, T200 anomaly,
+  SSH eastern Pacific, historical analogs.
+- Generates `gfs_plots/enso/enso_analysis.png` (7-panel figure) and
+  `gfs_plots/enso/enso_indicators.png` (historical context).
+- Full terminal summary with probability bar.
+
+#### `docs/` — Sphinx/ReadTheDocs site
+- `furo` theme, MyST-Parser (Markdown), `sphinx-autodoc-typehints`.
+- Pages: Installation · Quick start · GFS examples · ENSO analysis ·
+  Maps & globe · API reference (GFS, Ocean, Plots) · Gallery (20 plots).
+- `.readthedocs.yaml` configuration for automatic RTD builds.
+- `docs/_static/plots/` — all 20 gallery plots.
+
+#### GitHub Actions
+- New `docs` job: validates Sphinx build on every push; triggers ReadTheDocs
+  API build on version tags when `RTD_TOKEN` secret is configured.
+
+### Changed
+- `setup.py`: added `extras_require` groups `[plots]`, `[docs]`, `[dev]`;
+  updated classifiers, keywords, and `python_requires = ">=3.10"`.
+- `README.md` condensed from 1 029 → 218 lines; links to ReadTheDocs docs.
+- `requirements.txt`: removed `basemap==2.0.0`, `basemap_data==2.0.0`,
+  `cffi==1.17.1` (incompatible with Python ≥ 3.14).
+
+### Fixed
+- `open_ersst`: region subsetting now correctly handles ERSST's
+  **decreasing latitude** axis (88 → −88); `lat_min`/`lat_max` slice is
+  automatically reversed when needed.
+- `get_sst_series(source="ersst")`: uses 0–360 longitude convention
+  (matching ERSST grid) instead of an incorrect sign-flip to −180/+180.
+- `plots.py` / `make_readme_plots.py`: xarray ≥ 2025.x non-index coordinate
+  selection — replaced `ds.sel(forecast_hour=h, method="nearest")` with
+  `_hour_sel(ds, h)` using `isel` + `argmin`.
+- `plots.py` `plot_precip_heatmap`: pandas CoW FutureWarning eliminated by
+  replacing chained assignment with `.assign()`.
+
+### Tests
+- New `tests/test_ocean.py`: 44 offline tests covering GODAS catalogue,
+  `open_godas`, `get_godas`, typed wrappers, `open_ersst`, ENSO indices,
+  `classify_enso`, `get_thermocline_depth`, `enso_summary`, and
+  `assess_probability` from `enso_forecast.py`.
+
+---
+
 ## [2.2.7] - 2026-05-03
 ### Added
 - ```noawclg.load``` function for get direct dataset noaa
@@ -176,7 +255,9 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.2.6...HEAD
+[Unreleased]: https://github.com/reinanbr/noawclg/compare/v2.3.0...HEAD
+[2.3.0]:      https://github.com/reinanbr/noawclg/compare/v2.2.7...v2.3.0
+[2.2.7]:      https://github.com/reinanbr/noawclg/compare/v2.2.6...v2.2.7
 [2.2.6]:      https://github.com/reinanbr/noawclg/compare/v2.2.5...v2.2.6
 [2.2.5]:      https://github.com/reinanbr/noawclg/compare/v2.2.4...v2.2.5
 [2.2.4]:      https://github.com/reinanbr/noawclg/compare/v2.2.3...v2.2.4
