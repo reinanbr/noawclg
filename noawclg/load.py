@@ -1,5 +1,12 @@
+"""Convenience wrapper: load GFS data directly as an xr.Dataset."""
+
+from __future__ import annotations
+
 from typing import Optional
-from noawclg.main import get_noaa_data
+
+import xarray as xr
+
+from noawclg.query import get_noaa_data
 
 
 def load(
@@ -12,21 +19,23 @@ def load(
     lon_dim: Optional[str] = None,
     time_dim: Optional[str] = None,
     region: Optional[dict[str, float]] = None,
-):
-    """
-    Load NOAA GFS data for a specific date and cycle.
+) -> xr.Dataset:
+    """Load NOAA GFS data and return the underlying xr.Dataset directly.
 
-    Parameters:
-        date (str): Date in 'YYYYMMDD' format. If None, uses the latest available date.
-        cycle (str): Model run cycle ("00", "06", "12", "18"). Default is "00".
-        keys (list[str]): List of variable names to load. Default is ["t2m"].
-        hours (list[int]): List of forecast hours to load. If None, loads all available hours.
-        lat_dim (str): Name of the latitude dimension in the dataset. If None, uses the default name.
-        lon_dim (str): Name of the longitude dimension in the dataset. If None, uses the default name.
-        time_dim (str): Name of the time dimension in the dataset. If None, uses the default name.
-        region (dict[str, float]): Bounding box coordinates for the region of interest.
-    Returns:
-        xarray.Dataset: The loaded dataset containing the requested variables and dimensions.
+    Parameters
+    ----------
+    date    : Date in 'DD/MM/YYYY' format. Defaults to today.
+    cycle   : Model cycle ('00', '06', '12', '18').
+    keys    : Variable keys to load (e.g. ['t2m', 'prate']).
+    hours   : Forecast hours to include. Defaults to every 3 h up to 384 h.
+    lat_dim : Override auto-detected latitude dimension name.
+    lon_dim : Override auto-detected longitude dimension name.
+    time_dim: Override auto-detected time dimension name.
+    region  : Bounding box dict with toplat/bottomlat/leftlon/rightlon.
+
+    Returns
+    -------
+    xr.Dataset
     """
     return get_noaa_data(
         date=date,

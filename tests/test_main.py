@@ -80,7 +80,7 @@ class TestGetNoaaData:
         fake_manager = MagicMock()
         fake_manager.build_dataset.return_value = ds
 
-        with patch("noawclg.main.GFSDatasetManager", return_value=fake_manager):
+        with patch("noawclg.query.GFSDatasetManager", return_value=fake_manager):
             noaa = get_noaa_data(date="03/04/2026", keys=["t2m"], hours=[0, 3])
 
         fake_manager.build_dataset.assert_called_once_with("t2m", [0, 3])
@@ -90,7 +90,7 @@ class TestGetNoaaData:
         fake_manager = MagicMock()
         fake_manager.build_multi_dataset.return_value = ds
 
-        with patch("noawclg.main.GFSDatasetManager", return_value=fake_manager):
+        with patch("noawclg.query.GFSDatasetManager", return_value=fake_manager):
             get_noaa_data(date="03/04/2026", keys=["t2m", "prate"], hours=[0, 3])
 
         fake_manager.build_multi_dataset.assert_called_once_with(
@@ -105,7 +105,7 @@ class TestGetNoaaData:
         fake_manager = MagicMock()
         fake_manager.build_dataset.return_value = ds
 
-        with patch("noawclg.main.GFSDatasetManager", return_value=fake_manager):
+        with patch("noawclg.query.GFSDatasetManager", return_value=fake_manager):
             noaa = get_noaa_data(date="03/04/2026", keys=["t2m"], hours=[0, 3])
 
         keys = noaa.get_keys()
@@ -115,7 +115,7 @@ class TestGetNoaaData:
         fake_manager = MagicMock()
         fake_manager.build_dataset.return_value = ds
 
-        with patch("noawclg.main.GFSDatasetManager", return_value=fake_manager):
+        with patch("noawclg.query.GFSDatasetManager", return_value=fake_manager):
             noaa = get_noaa_data(date="03/04/2026", keys=["t2m"], hours=[0, 3])
 
         view = noaa.get_data_from_point((-3.1, -38.5))
@@ -127,7 +127,7 @@ class TestGetNoaaData:
         fake_manager.build_dataset.return_value = ds
 
         with (
-            patch("noawclg.main.GFSDatasetManager", return_value=fake_manager),
+            patch("noawclg.query.GFSDatasetManager", return_value=fake_manager),
             patch(
                 "noawclg.main._GEOLOCATOR.geocode",
                 return_value=SimpleNamespace(latitude=-3.73, longitude=-38.52),
@@ -143,7 +143,7 @@ class TestGetNoaaData:
         fake_manager.build_dataset.return_value = ds
 
         with (
-            patch("noawclg.main.GFSDatasetManager", return_value=fake_manager),
+            patch("noawclg.query.GFSDatasetManager", return_value=fake_manager),
             patch("noawclg.main._GEOLOCATOR.geocode", return_value=None),
         ):
             noaa = get_noaa_data(date="03/04/2026", keys=["t2m"], hours=[0, 3])
@@ -154,7 +154,7 @@ class TestGetNoaaData:
         fake_manager = MagicMock()
         fake_manager.build_dataset.return_value = ds
 
-        with patch("noawclg.main.GFSDatasetManager", return_value=fake_manager):
+        with patch("noawclg.query.GFSDatasetManager", return_value=fake_manager):
             noaa = get_noaa_data(date="03/04/2026", keys=["t2m"], hours=[0, 3])
 
         series = noaa.get_time_series((-3.1, -38.5), variable="t2m")
@@ -202,4 +202,5 @@ class TestLoadFunction:
             lat_dim="latitude",
             lon_dim="longitude",
             time_dim="time",
+            region=None,
         )

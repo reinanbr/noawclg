@@ -1,63 +1,25 @@
-"""Utilities to collect 16-day GFS data.
-
-Based on the schedule logic from help2.py.
-"""
+"""Utilities to check or download all 16-day GFS data slots."""
 
 from __future__ import annotations
 
+import logging
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-import logging
-import time
+
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from tqdm import tqdm
+
+from noawclg.http import _build_session
 
 LOG = logging.getLogger(__name__)
 
-# FIX 1: NOMADS blocks the default 'python-requests' User-Agent with 403.
-# A descriptive browser-like agent is required — same pattern as gfs_plots.py.
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (compatible; GFS-downloader/1.0; "
-        "+https://github.com/reinanbr/noawclg)"
-    )
-}
-
-# FIX 2: Retry strategy — NOMADS connections fail intermittently.
-# Retries on 429 (rate-limit), 500, 502, 503, 504 with exponential back-off.
-_RETRY = Retry(
-    total=4,
-    backoff_factor=2,  # waits 2s, 4s, 8s, 16s between attempts
-    status_forcelist={429, 500, 502, 503, 504},
-    allowed_methods={"GET", "HEAD"},
-    raise_on_status=False,
-)
-
-# Pause between requests to avoid hammering the NOMADS server (seconds).
-# Mirrors PAUSA_DOWNLOAD from gfs_plots.py.
-_PAUSA = 1.5
-
-
-def _build_session() -> requests.Session:
-    """Return a Session with headers and retry logic pre-configured."""
-    session = requests.Session()
-    session.headers.update(_HEADERS)
-    adapter = HTTPAdapter(max_retries=_RETRY)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
+_PAUSA = 1.5  # seconds between requests
 
 
 def _full_16_day_hours() -> list[int]:
-    """Return all GFS forecast hours for 16 days.
-
-    Operational GFS schedule:
-    - f000 to f120: 1-hour step
-    - f123 to f384: 3-hour step
-    """
+    """Return all GFS forecast hours for 16 days (1-h steps then 3-h steps)."""
     return list(range(0, 121)) + list(range(123, 385, 3))
 
 
@@ -69,22 +31,21 @@ def get_all_data_16_days(
     save_to: str | None = None,
     pause: float = _PAUSA,
 ) -> dict[str, Any]:
-    """Fetch (and optionally download) all available 16-day data slots.
+    """Fetch (and optionally download) all available 16-day GFS data slots.
 
     Args:
-        base_url: URL template with placeholders ``{date}``, ``{cycle}``,
-            and ``{hour}``.
-            Example (direct NOMADS file access — recommended):
-            https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/
-            gfs.{date}/{cycle}/atmos/gfs.t{cycle}z.pgrb2.0p25.f{hour:03d}
-        date: Model run date in YYYYMMDD format.
-        cycle: Model run cycle ("00", "06", "12", "18").
+        base_url: URL template with ``{date}``, ``{cycle}``, and ``{hour}``
+            placeholders pointing to a NOMADS file.
+        date: Model run date in ``YYYYMMDD`` format.
+        cycle: Model run cycle (``'00'``, ``'06'``, ``'12'``, ``'18'``).
         timeout: Request timeout in seconds.
-        save_to: Optional output directory to store downloaded files.
-        pause: Seconds to wait between requests (default 1.5 s).
+        save_to: Optional directory to store downloaded GRIB2 files.
+            When omitted, only availability is checked (HEAD requests).
+        pause: Seconds to sleep between requests.
 
     Returns:
-        Dictionary containing available and missing slots.
+        Dict with keys ``available``, ``missing``, ``available_count``,
+        ``missing_count``, ``total_slots``, ``date``, ``cycle``.
     """
     datetime.strptime(date, "%Y%m%d")
 
@@ -110,7 +71,6 @@ def get_all_data_16_days(
 
             try:
                 if out_dir:
-                    # --- DOWNLOAD MODE ---
                     resp = session.get(url, timeout=timeout, stream=True)
 
                     if resp.status_code != 200:
@@ -130,12 +90,9 @@ def get_all_data_16_days(
                                 fh.write(chunk)
                                 bytes_written += len(chunk)
 
-                    # FIX 3: validate the file is not empty / an HTML error page.
-                    # gfs_plots.py uses len(r.content) < 100 for the same reason.
                     if bytes_written < 100:
                         LOG.warning(
-                            "Hour %d: file too small (%d bytes) — likely an "
-                            "error response; discarding.",
+                            "Hour %d: file too small (%d bytes) — discarding.",
                             hour,
                             bytes_written,
                         )
@@ -153,17 +110,12 @@ def get_all_data_16_days(
                         "hour": hour,
                         "url": url,
                         "status_code": resp.status_code,
-                        # FIX 4: Content-Length is unreliable with stream=True;
-                        # use the actual bytes written instead.
                         "content_length": bytes_written,
                         "file": str(path),
                     }
                     LOG.info("  [ok] f%03d  %.0f KB", hour, bytes_written / 1024)
 
                 else:
-                    # --- CHECK-ONLY MODE (no download) ---
-                    # FIX 5: use HEAD to avoid downloading the full file into
-                    # memory just to check availability (was GET with stream=False).
                     resp = session.head(url, timeout=timeout)
 
                     if resp.status_code not in {200, 302}:
@@ -182,12 +134,11 @@ def get_all_data_16_days(
 
                 available.append(item)
                 it_hour += 1
-                percent_complete = (it_hour / total_hours) * 100
                 LOG.info(
                     "Progress: %d/%d hours (%.1f%%)",
                     it_hour,
                     total_hours,
-                    percent_complete,
+                    (it_hour / total_hours) * 100,
                 )
 
             except requests.RequestException as exc:
@@ -208,22 +159,3 @@ def get_all_data_16_days(
         "available_count": len(available),
         "missing_count": len(missing),
     }
-
-
-# if __name__ == "__main__":
-#     logging.basicConfig(level=logging.INFO)
-
-#     base = (
-#         "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/"
-#         "gfs.{date}/{cycle}/atmos/gfs.t{cycle}z.pgrb2.0p25.f{hour:03d}"
-#     )
-
-#     # Check-only (no download):
-#     result = get_all_data_16_days(base_url=base, date="20260403", cycle="06")
-
-#     print(
-#         f"Available: {result['available_count']} | "
-#         f"Missing:   {result['missing_count']}"
-#     )
-
-# To download files, add:  save_to="./gfs_output"

@@ -36,74 +36,114 @@ import xarray as xr
 LOG = logging.getLogger(__name__)
 
 # ── URL templates ──────────────────────────────────────────────────────────────
-_GODAS_BASE  = "https://psl.noaa.gov/thredds/dodsC/Datasets/godas/{var}.{year}.nc"
-_ERSST_URL   = "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.ersst.v5/sst.mnmean.nc"
+_GODAS_BASE = "https://psl.noaa.gov/thredds/dodsC/Datasets/godas/{var}.{year}.nc"
+_ERSST_URL = "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.ersst.v5/sst.mnmean.nc"
 
 # ── GODAS variable catalogue ───────────────────────────────────────────────────
 GODAS_VARS: dict[str, dict] = {
     "pottmp": {
         "long_name": "Potential temperature",
-        "units_in":  "K",
+        "units_in": "K",
         "units_out": "°C",
         "has_levels": True,
-        "valid_min":  200.0,   # any K < 200 is a fill value
+        "valid_min": 200.0,  # any K < 200 is a fill value
     },
     "salt": {
         "long_name": "Salinity",
-        "units_in":  "kg/kg",
+        "units_in": "kg/kg",
         "units_out": "PSU",
         "has_levels": True,
-        "valid_min":  0.001,   # < 0.001 kg/kg treated as fill
+        "valid_min": 0.001,  # < 0.001 kg/kg treated as fill
     },
     "ucur": {
         "long_name": "U-component of ocean current (eastward)",
-        "units_in":  "m/s",
+        "units_in": "m/s",
         "units_out": "m/s",
         "has_levels": True,
-        "valid_min":  None,
+        "valid_min": None,
     },
     "vcur": {
         "long_name": "V-component of ocean current (northward)",
-        "units_in":  "m/s",
+        "units_in": "m/s",
         "units_out": "m/s",
         "has_levels": True,
-        "valid_min":  None,
+        "valid_min": None,
     },
     "sshg": {
         "long_name": "Sea Surface Height Relative to Geoid",
-        "units_in":  "m",
+        "units_in": "m",
         "units_out": "m",
         "has_levels": False,
-        "valid_min":  None,
+        "valid_min": None,
     },
 }
 
 # Standard ENSO monitoring boxes (0–360 ° longitude convention)
 NINO_BOXES: dict[str, dict] = {
-    "1+2": {"lat": (-10.0,  0.0), "lon": (270.0, 280.0)},
-    "3":   {"lat": ( -5.0,  5.0), "lon": (210.0, 270.0)},
-    "3.4": {"lat": ( -5.0,  5.0), "lon": (190.0, 240.0)},
-    "4":   {"lat": ( -5.0,  5.0), "lon": (160.0, 210.0)},
+    "1+2": {"lat": (-10.0, 0.0), "lon": (270.0, 280.0)},
+    "3": {"lat": (-5.0, 5.0), "lon": (210.0, 270.0)},
+    "3.4": {"lat": (-5.0, 5.0), "lon": (190.0, 240.0)},
+    "4": {"lat": (-5.0, 5.0), "lon": (160.0, 210.0)},
 }
 
 # Warm water volume box: 5°S–5°N, 120°E–80°W (depth-integrated T > 20°C)
 _WWV_BOX = {"lat": (-5.0, 5.0), "lon": (120.0, 280.0)}
 
 # GODAS depth levels (m)
-GODAS_LEVELS = np.array([
-      5,  15,  25,  35,  45,  55,  65,  75,  85,  95, 105, 115,
-    125, 135, 145, 155, 165, 175, 185, 195, 205, 215, 225, 238,
-    262, 303, 366, 459, 584, 747, 949, 1193, 1479, 1807,
-    2174, 2579, 3016, 3483, 3972, 4478,
-], dtype=float)
+GODAS_LEVELS = np.array(
+    [
+        5,
+        15,
+        25,
+        35,
+        45,
+        55,
+        65,
+        75,
+        85,
+        95,
+        105,
+        115,
+        125,
+        135,
+        145,
+        155,
+        165,
+        175,
+        185,
+        195,
+        205,
+        215,
+        225,
+        238,
+        262,
+        303,
+        366,
+        459,
+        584,
+        747,
+        949,
+        1193,
+        1479,
+        1807,
+        2174,
+        2579,
+        3016,
+        3483,
+        3972,
+        4478,
+    ],
+    dtype=float,
+)
 
-_K_TO_C  = 273.15
-_KGK_PSU = 1000.0   # kg/kg → PSU (g/kg)
+_K_TO_C = 273.15
+_KGK_PSU = 1000.0  # kg/kg → PSU (g/kg)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Internal helpers
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def _apply_region(ds: xr.Dataset, region: dict | None) -> xr.Dataset:
     if region is None:
@@ -116,9 +156,9 @@ def _apply_region(ds: xr.Dataset, region: dict | None) -> xr.Dataset:
 
 def _mask_and_convert(da: xr.DataArray, var: str) -> xr.DataArray:
     """Apply fill-value masking and unit conversion for a GODAS variable."""
-    info     = GODAS_VARS[var]
-    vmin     = info["valid_min"]
-    fv       = da.attrs.get("missing_value", da.attrs.get("_FillValue", None))
+    info = GODAS_VARS[var]
+    vmin = info["valid_min"]
+    fv = da.attrs.get("missing_value", da.attrs.get("_FillValue", None))
 
     # Mask explicit fill values
     if fv is not None:
@@ -141,11 +181,13 @@ def _mask_and_convert(da: xr.DataArray, var: str) -> xr.DataArray:
     elif var == "salt":
         da = da * _KGK_PSU
 
-    da.attrs.update({
-        "long_name": info["long_name"],
-        "units":     info["units_out"],
-        "source":    "NOAA NCEP GODAS",
-    })
+    da.attrs.update(
+        {
+            "long_name": info["long_name"],
+            "units": info["units_out"],
+            "source": "NOAA NCEP GODAS",
+        }
+    )
     return da
 
 
@@ -160,6 +202,7 @@ def _concat_years(
 # ══════════════════════════════════════════════════════════════════════════════
 # Low-level GODAS access
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def open_godas(
     year: int,
@@ -185,8 +228,9 @@ def open_godas(
         Units converted to SI/human-readable (°C, PSU, m/s, m).
     """
     if variable not in GODAS_VARS:
-        raise ValueError(f"Unknown GODAS variable '{variable}'. "
-                         f"Choose from: {list(GODAS_VARS)}")
+        raise ValueError(
+            f"Unknown GODAS variable '{variable}'. Choose from: {list(GODAS_VARS)}"
+        )
 
     url = _GODAS_BASE.format(var=variable, year=year)
     LOG.info("Opening GODAS %s %d via OPeNDAP", variable, year)
@@ -194,7 +238,7 @@ def open_godas(
 
     info = GODAS_VARS[variable]
     if info["has_levels"] and depth_m is not None:
-        ds = ds.sel(level=depth_m, method="nearest")   # separate from region sel
+        ds = ds.sel(level=depth_m, method="nearest")  # separate from region sel
 
     ds = _apply_region(ds, region)
 
@@ -247,6 +291,7 @@ def get_godas(
 # Typed convenience wrappers
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def get_ocean_temp(
     year_start: int,
     year_end: int | None = None,
@@ -263,8 +308,9 @@ def get_ocean_temp(
     -------
     xr.DataArray  ``pottmp`` (°C), dims ``(time, lat, lon)``.
     """
-    return get_godas(year_start, year_end,
-                     variable="pottmp", depth_m=depth_m, region=region)
+    return get_godas(
+        year_start, year_end, variable="pottmp", depth_m=depth_m, region=region
+    )
 
 
 def get_salinity(
@@ -283,8 +329,9 @@ def get_salinity(
     -------
     xr.DataArray  ``salt`` (PSU), dims ``(time, lat, lon)``.
     """
-    return get_godas(year_start, year_end,
-                     variable="salt", depth_m=depth_m, region=region)
+    return get_godas(
+        year_start, year_end, variable="salt", depth_m=depth_m, region=region
+    )
 
 
 def get_currents(
@@ -302,10 +349,8 @@ def get_currents(
         ``vcur``  : northward current component (m/s)
         ``speed`` : current speed sqrt(u²+v²) (m/s)
     """
-    u = get_godas(year_start, year_end, variable="ucur",
-                  depth_m=depth_m, region=region)
-    v = get_godas(year_start, year_end, variable="vcur",
-                  depth_m=depth_m, region=region)
+    u = get_godas(year_start, year_end, variable="ucur", depth_m=depth_m, region=region)
+    v = get_godas(year_start, year_end, variable="vcur", depth_m=depth_m, region=region)
     speed = np.sqrt(u**2 + v**2)
     speed.attrs = {"long_name": "Ocean current speed", "units": "m/s"}
 
@@ -326,13 +371,13 @@ def get_ssh(
     -------
     xr.DataArray  ``sshg`` (m), dims ``(time, lat, lon)``.
     """
-    return get_godas(year_start, year_end,
-                     variable="sshg", region=region)
+    return get_godas(year_start, year_end, variable="sshg", region=region)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ERSST v5 — long-term SST record (1854–present)
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def open_ersst(
     year_start: int | None = None,
@@ -357,20 +402,22 @@ def open_ersst(
     LOG.info("Opening ERSST v5 via OPeNDAP")
     ds = xr.open_dataset(_ERSST_URL, engine="netcdf4")
 
-    sst = ds["sst"].squeeze()   # drop singleton 'lev' dim if present
+    sst = ds["sst"].squeeze()  # drop singleton 'lev' dim if present
 
     # Slice time
     if year_start is not None or year_end is not None:
         t0 = f"{year_start}-01" if year_start else None
-        t1 = f"{year_end}-12"   if year_end   else None
+        t1 = f"{year_end}-12" if year_end else None
         sst = sst.sel(time=slice(t0, t1))
 
     if region is not None:
         # ERSST lat may be decreasing (88 → -88): auto-orient the slice
         lat_dec = float(sst["lat"].values[0]) > float(sst["lat"].values[-1])
-        lat_sel = (slice(region["lat_max"], region["lat_min"])
-                   if lat_dec else
-                   slice(region["lat_min"], region["lat_max"]))
+        lat_sel = (
+            slice(region["lat_max"], region["lat_min"])
+            if lat_dec
+            else slice(region["lat_min"], region["lat_max"])
+        )
         # ERSST lon is 0-360: use Niño-box values directly (no sign flip)
         sst = sst.sel(
             lat=lat_sel,
@@ -384,19 +431,22 @@ def open_ersst(
             sst = sst.where(sst != float(fv))
         except (TypeError, ValueError):
             pass
-    sst = sst.where(np.abs(sst) < 100)   # physical range guard
+    sst = sst.where(np.abs(sst) < 100)  # physical range guard
 
-    sst.attrs.update({
-        "long_name": "Sea Surface Temperature",
-        "units": "°C",
-        "source": "NOAA ERSST v5",
-    })
+    sst.attrs.update(
+        {
+            "long_name": "Sea Surface Temperature",
+            "units": "°C",
+            "source": "NOAA ERSST v5",
+        }
+    )
     return sst
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ENSO indices
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def get_sst_series(
     year_start: int,
@@ -424,12 +474,20 @@ def get_sst_series(
 
     if source == "ersst":
         # ERSST uses 0-360 longitude, same convention as NINO_BOXES
-        region = {"lat_min": b["lat"][0], "lat_max": b["lat"][1],
-                  "lon_min": b["lon"][0], "lon_max": b["lon"][1]}
+        region = {
+            "lat_min": b["lat"][0],
+            "lat_max": b["lat"][1],
+            "lon_min": b["lon"][0],
+            "lon_max": b["lon"][1],
+        }
         da = open_ersst(year_start, year_end, region=region)
     else:
-        region = {"lat_min": b["lat"][0], "lat_max": b["lat"][1],
-                  "lon_min": b["lon"][0], "lon_max": b["lon"][1]}
+        region = {
+            "lat_min": b["lat"][0],
+            "lat_max": b["lat"][1],
+            "lon_min": b["lon"][0],
+            "lon_max": b["lon"][1],
+        }
         da = get_ocean_temp(year_start, year_end, depth_m=5.0, region=region)
 
     sst_mean = da.mean(["lat", "lon"])
@@ -464,11 +522,11 @@ def get_nino_anomaly(
         year_end = year_start
 
     all_start = min(year_start, clim_start)
-    all_end   = max(year_end,   clim_end)
+    all_end = max(year_end, clim_end)
 
     sst = get_sst_series(all_start, all_end, box=box, source=source)
 
-    clim_mask    = (sst.index.year >= clim_start) & (sst.index.year <= clim_end)
+    clim_mask = (sst.index.year >= clim_start) & (sst.index.year <= clim_end)
     monthly_clim = sst[clim_mask].groupby(sst[clim_mask].index.month).mean()
 
     anomaly = sst.copy()
@@ -494,9 +552,14 @@ def get_oni(
     -------
     pd.Series  ONI (°C), indexed by the centre month of each season.
     """
-    anom = get_nino_anomaly(year_start, year_end, box="3.4",
-                            clim_start=clim_start, clim_end=clim_end,
-                            source=source)
+    anom = get_nino_anomaly(
+        year_start,
+        year_end,
+        box="3.4",
+        clim_start=clim_start,
+        clim_end=clim_end,
+        source=source,
+    )
     oni = anom.rolling(window=3, center=True, min_periods=3).mean()
     oni.name = "ONI"
     return oni
@@ -520,8 +583,8 @@ def classify_enso(
 
     for phase, sign in [("El Niño", 1), ("La Niña", -1)]:
         condition = (sign * oni >= threshold).astype(int)
-        group_id  = (condition != condition.shift()).cumsum()
-        run_len   = condition.groupby(group_id).transform("sum") * condition
+        group_id = (condition != condition.shift()).cumsum()
+        run_len = condition.groupby(group_id).transform("sum") * condition
         raw[run_len >= min_consecutive] = phase
 
     return raw
@@ -530,6 +593,7 @@ def classify_enso(
 # ══════════════════════════════════════════════════════════════════════════════
 # Thermocline depth — depth of 20 °C isotherm (D20)
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def get_thermocline_depth(
     year_start: int,
@@ -554,24 +618,24 @@ def get_thermocline_depth(
     for yr in range(year_start, year_end + 1):
         try:
             ds = open_godas(yr, variable="pottmp", region=region)
-            t  = ds["pottmp"]       # (time, level, lat, lon) in °C
+            t = ds["pottmp"]  # (time, level, lat, lon) in °C
 
-            levels  = t["level"].values.astype(float)
-            above   = (t > isotherm_temp).astype(float)   # 1 where T > threshold
+            levels = t["level"].values.astype(float)
+            above = (t > isotherm_temp).astype(float)  # 1 where T > threshold
 
             # Index of the deepest level that is still above the isotherm
             idx_vals = np.clip(
                 (above.sum("level").values - 1).astype(int), 0, len(levels) - 1
             )
-            depth_arr = levels[idx_vals]    # shape (time, lat, lon)
+            depth_arr = levels[idx_vals]  # shape (time, lat, lon)
 
             d20 = xr.DataArray(
                 depth_arr,
                 dims=("time", "lat", "lon"),
                 coords={
                     "time": t.coords["time"],
-                    "lat":  t.coords["lat"],
-                    "lon":  t.coords["lon"],
+                    "lat": t.coords["lat"],
+                    "lon": t.coords["lon"],
                 },
             )
             chunks.append(d20)
@@ -594,6 +658,7 @@ def get_thermocline_depth(
 # Warm Water Volume (WWV)
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def get_warm_water_volume(
     year_start: int,
     year_end: int | None = None,
@@ -614,25 +679,28 @@ def get_warm_water_volume(
         year_end = year_start
 
     reg = {
-        "lat_min": _WWV_BOX["lat"][0], "lat_max": _WWV_BOX["lat"][1],
-        "lon_min": _WWV_BOX["lon"][0], "lon_max": _WWV_BOX["lon"][1],
+        "lat_min": _WWV_BOX["lat"][0],
+        "lat_max": _WWV_BOX["lat"][1],
+        "lon_min": _WWV_BOX["lon"][0],
+        "lon_max": _WWV_BOX["lon"][1],
     }
-    depth_levels = GODAS_LEVELS[GODAS_LEVELS <= max_depth]
-
     records: list[tuple[pd.Timestamp, float]] = []
     for yr in range(year_start, year_end + 1):
         try:
-            ds  = open_godas(yr, variable="pottmp", region=reg)
-            t   = ds["pottmp"].sel(level=slice(None, max_depth))
+            ds = open_godas(yr, variable="pottmp", region=reg)
+            t = ds["pottmp"].sel(level=slice(None, max_depth))
             # Boolean mask: warm water
             warm = (t > temp_threshold).astype(float)
             # Approximate grid cell volume (depth thickness × lat-lon area)
-            lev   = t["level"].values.astype(float)
-            dlev  = np.gradient(lev)     # thickness of each level (m)
+            lev = t["level"].values.astype(float)
+            dlev = np.gradient(lev)  # thickness of each level (m)
             # Lat spacing ~1/3° near equator ≈ 37 km; lon spacing 1° ≈ 111 km
-            dlat  = np.abs(np.gradient(t["lat"].values))  * 111_000.0   # m
-            dlon  = np.abs(np.gradient(t["lon"].values))  * 111_000.0 * \
-                    np.cos(np.deg2rad(t["lat"].values))
+            dlat = np.abs(np.gradient(t["lat"].values)) * 111_000.0  # m
+            dlon = (
+                np.abs(np.gradient(t["lon"].values))
+                * 111_000.0
+                * np.cos(np.deg2rad(t["lat"].values))
+            )
 
             dlon_da = xr.DataArray(dlon, dims=["lat"])
             dlat_da = xr.DataArray(dlat, dims=["lat"])
@@ -640,7 +708,7 @@ def get_warm_water_volume(
 
             # cell volume: dz × dy × dx  (m³)
             cell_vol = dlev_da * dlat_da * dlon_da
-            wwv_ts   = (warm * cell_vol).sum(["level", "lat", "lon"])
+            wwv_ts = (warm * cell_vol).sum(["level", "lat", "lon"])
 
             for i, tval in enumerate(wwv_ts["time"].values):
                 records.append((pd.Timestamp(tval), float(wwv_ts.values[i]) / 1e14))
@@ -657,6 +725,7 @@ def get_warm_water_volume(
 # ══════════════════════════════════════════════════════════════════════════════
 # Convenience: full ENSO monitoring summary
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def enso_summary(
     year_start: int,
@@ -683,19 +752,27 @@ def enso_summary(
     if year_end is None:
         year_end = year_start
 
-    sst   = get_sst_series(year_start, year_end, box="3.4", source=source)
-    anom  = get_nino_anomaly(year_start, year_end, box="3.4",
-                              clim_start=clim_start, clim_end=clim_end,
-                              source=source)
-    oni   = get_oni(year_start, year_end,
-                    clim_start=clim_start, clim_end=clim_end, source=source)
+    sst = get_sst_series(year_start, year_end, box="3.4", source=source)
+    anom = get_nino_anomaly(
+        year_start,
+        year_end,
+        box="3.4",
+        clim_start=clim_start,
+        clim_end=clim_end,
+        source=source,
+    )
+    oni = get_oni(
+        year_start, year_end, clim_start=clim_start, clim_end=clim_end, source=source
+    )
     phase = classify_enso(oni)
 
-    df = pd.DataFrame({
-        "sst_nino34":  sst,
-        "anom_nino34": anom,
-        "oni":         oni,
-        "phase":       phase,
-    })
+    df = pd.DataFrame(
+        {
+            "sst_nino34": sst,
+            "anom_nino34": anom,
+            "oni": oni,
+            "phase": phase,
+        }
+    )
     df.index.name = "month"
     return df

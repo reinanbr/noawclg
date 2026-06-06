@@ -870,7 +870,7 @@ class TestNetCDF:
         nc = tmp_path / "ld.nc"
         mgr.save_netcdf(self._ds(), str(nc))
         loaded_raw = xr.open_dataset(nc, chunks=None)
-        with patch("noawclg.gfs_dataset.xr.open_dataset", return_value=loaded_raw):
+        with patch("noawclg.persistence.xr.open_dataset", return_value=loaded_raw):
             loaded = GFSDatasetManager.load_netcdf(nc)
         assert isinstance(loaded, xr.Dataset)
         loaded.close()
@@ -975,7 +975,7 @@ class TestZarr:
         # save_zarr is fully mocked — no disk write needed
         self._save(mgr, ds, str(store))
         # load_zarr just calls xr.open_zarr; patch it to return our ds
-        with patch("noawclg.gfs_dataset.xr.open_zarr", return_value=ds):
+        with patch("noawclg.persistence.xr.open_zarr", return_value=ds):
             loaded = GFSDatasetManager.load_zarr(store)
         assert isinstance(loaded, xr.Dataset)
 
